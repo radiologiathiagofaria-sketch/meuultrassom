@@ -1,0 +1,886 @@
+/**
+ * MEUULTRASSOM — MÓDULO OBSTÉTRICO SIMPLES (16 A 41 SEMANAS)
+ * Arquivo CSS 100% independente
+ * Preserva estritamente a identidade visual do meuultrassom aprovada no Obstétrico Inicial
+ */
+
+:root {
+  --primary: #3CD4D8;
+  --primary-hover: #2ec4c8;
+  --primary-dark: #16989d;
+  --primary-rgb: 60, 212, 216;
+  --primary-soft: rgba(60, 212, 216, 0.16);
+  --primary-soft-hover: rgba(60, 212, 216, 0.26);
+  
+  --secondary: #EF48A8;
+  --secondary-hover: #e03798;
+  --secondary-dark: #be217b;
+  --secondary-rgb: 239, 72, 168;
+  --secondary-soft: rgba(239, 72, 168, 0.14);
+  --secondary-soft-hover: rgba(239, 72, 168, 0.24);
+
+  /* Tema Claro (Predominância Turquesa Imersiva) */
+  --bg-page: #d0f1f3;
+  --bg-page-gradient: linear-gradient(180deg, #c4eff1 0%, #d5f4f6 35%, #def7f8 100%);
+  --bg-header: #3CD4D8;
+  --header-border: #30bcc0;
+  
+  --bg-card: #e7f8f9;
+  --bg-card-hover: #f0fbfb;
+  --bg-card-subtle: #dbf4f5;
+  --bg-input: #ffffff;
+  --bg-input-focus: #ffffff;
+
+  --border-subtle: rgba(22, 152, 157, 0.22);
+  --border-medium: rgba(22, 152, 157, 0.40);
+  --border-strong: rgba(22, 152, 157, 0.65);
+
+  --text-main: #0c3b3e;
+  --text-secondary: #1a575b;
+  --text-muted: #3d797d;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(12, 59, 62, 0.08);
+  --shadow-md: 0 4px 14px rgba(12, 59, 62, 0.12);
+  --shadow-lg: 0 10px 28px rgba(12, 59, 62, 0.16);
+
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-report: "Arial", sans-serif;
+  --transition: all 0.2s ease-in-out;
+}
+
+/* Modo Escuro */
+body.dark-mode {
+  --bg-page: #0b111e;
+  --bg-page-gradient: linear-gradient(180deg, #0b111e 0%, #0d1627 50%, #101c31 100%);
+  --bg-header: #0f172a;
+  --header-border: #1e293b;
+
+  --bg-card: #141d2e;
+  --bg-card-hover: #19243a;
+  --bg-card-subtle: #182236;
+  --bg-input: #0e1524;
+  --bg-input-focus: #131c30;
+
+  --border-subtle: #24324d;
+  --border-medium: #334466;
+  --border-strong: #3CD4D8;
+
+  --text-main: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.6);
+}
+
+/* Reset básico e tipografia */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background: var(--bg-page-gradient);
+  background-attachment: fixed;
+  color: var(--text-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+   CABEÇALHO PADRÃO MEUULTRASSOM
+   ========================================================================== */
+.app-header {
+  background-color: var(--bg-header);
+  border-bottom: 1px solid var(--header-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  transition: var(--transition);
+}
+
+.header-container {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.header-logo {
+  height: 38px;
+  width: auto;
+  display: block;
+}
+
+.header-module-badge {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0c3b3e;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid rgba(12, 59, 62, 0.15);
+}
+
+body.dark-mode .header-module-badge {
+  color: var(--primary);
+  background: rgba(60, 212, 216, 0.12);
+  border-color: rgba(60, 212, 216, 0.25);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-header-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.4);
+  color: #0c3b3e;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(12, 59, 62, 0.2);
+  transition: var(--transition);
+}
+
+body.dark-mode .btn-header-back {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+
+.btn-header-back:hover {
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-1px);
+}
+
+body.dark-mode .btn-header-back:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+}
+
+.theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(12, 59, 62, 0.2);
+  color: #0c3b3e;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+body.dark-mode .theme-toggle-btn {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+  color: var(--text-main);
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateY(-1px);
+}
+
+body.dark-mode .theme-toggle-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+}
+
+/* ==========================================================================
+   LAYOUT PRINCIPAL (SPLIT SCREEN: FORMULÁRIO + LAUDO A4)
+   ========================================================================== */
+.main-wrapper {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 480px 1fr;
+  gap: 28px;
+  flex: 1;
+  width: 100%;
+}
+
+@media (min-width: 1400px) {
+  .main-wrapper {
+    grid-template-columns: 520px 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .main-wrapper {
+    grid-template-columns: 1fr;
+    padding: 16px;
+    gap: 24px;
+  }
+}
+
+/* ==========================================================================
+   COLUNA ESQUERDA: FORMULÁRIO ESTRUTURADO
+   ========================================================================== */
+.form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+.form-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-medium);
+}
+
+.card-header {
+  padding: 14px 18px;
+  background: var(--bg-card-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-number {
+  background: var(--primary);
+  color: #0c3b3e;
+  font-weight: 800;
+  font-size: 0.78rem;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.dark-mode .card-number {
+  color: #0c3b3e;
+}
+
+.card-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Grids do Formulário */
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 600px) {
+  .grid-2, .grid-3, .grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Campos e Rótulos */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.form-label-help {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.form-control, .form-select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--text-main);
+  background: var(--bg-input);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: var(--transition);
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  background: var(--bg-input-focus);
+}
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2316989d' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+body.dark-mode .form-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%233CD4D8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+/* Input com unidade agregada (ex: mm, bpm, g, cm) */
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-unit .form-control {
+  padding-right: 48px;
+}
+
+.input-unit {
+  position: absolute;
+  right: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* Painel condicional */
+.conditional-panel {
+  background: var(--bg-card-subtle);
+  border: 1px dashed var(--border-medium);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-top: 4px;
+}
+
+/* Badges e Feedbacks de Cálculos */
+.calc-badge {
+  background: var(--primary-soft);
+  border: 1px solid rgba(60, 212, 216, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calc-badge strong {
+  color: var(--primary-dark);
+  font-weight: 700;
+}
+
+body.dark-mode .calc-badge strong {
+  color: var(--primary);
+}
+
+.calc-badge.highlight {
+  background: rgba(239, 72, 168, 0.12);
+  border-color: rgba(239, 72, 168, 0.35);
+}
+
+.calc-badge.highlight strong {
+  color: var(--secondary);
+}
+
+.calc-badge.alert-warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #b45309;
+}
+
+body.dark-mode .calc-badge.alert-warning {
+  color: #fbbf24;
+}
+
+.calc-badge.alert-warning strong {
+  color: #b45309;
+}
+
+body.dark-mode .calc-badge.alert-warning strong {
+  color: #fbbf24;
+}
+
+.calc-badge.alert-success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #047857;
+}
+
+body.dark-mode .calc-badge.alert-success {
+  color: #34d399;
+}
+
+.calc-badge.alert-success strong {
+  color: #047857;
+}
+
+body.dark-mode .calc-badge.alert-success strong {
+  color: #34d399;
+}
+
+/* Botões Segmentados (Toggle de Opções Rápidas) */
+.segmented-btn-group {
+  display: flex;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  gap: 2px;
+}
+
+.segmented-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.segmented-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.3);
+}
+
+body.dark-mode .segmented-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.segmented-btn.active {
+  background: var(--primary);
+  color: #0c3b3e;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+body.dark-mode .segmented-btn.active {
+  background: var(--primary);
+  color: #0c3b3e;
+}
+
+/* Indicador de Referência de ILA */
+.ila-reference-badge {
+  background: var(--bg-card-subtle);
+  border-left: 3px solid var(--primary);
+  padding: 8px 12px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.ila-reference-badge strong {
+  color: var(--text-main);
+}
+
+/* ==========================================================================
+   COLUNA DIREITA: VISUALIZAÇÃO DO LAUDO (SIMULAÇÃO A4)
+   ========================================================================== */
+.report-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+}
+
+.report-toolbar {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 68px;
+  z-index: 90;
+}
+
+.toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.badge-status-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #10b981;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.manual-edit-indicator {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.14);
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-report-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-secondary-tool {
+  background: var(--bg-card-subtle);
+  color: var(--text-main);
+}
+
+.btn-secondary-tool:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-copy {
+  background: var(--primary);
+  color: #0c3b3e;
+  border-color: var(--primary-dark);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(60, 212, 216, 0.3);
+}
+
+.btn-copy:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(60, 212, 216, 0.4);
+}
+
+/* ==========================================================================
+   FOLHA DE LAUDO (SIMULAÇÃO FIEL A4 DO WORD)
+   ========================================================================== */
+.report-paper-container {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.report-paper {
+  background: #ffffff;
+  color: #000000 !important;
+  width: 100%;
+  max-width: 820px;
+  min-height: 1050px;
+  padding: 48px 56px;
+  border-radius: 4px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.14), 0 0 1px rgba(0, 0, 0, 0.08);
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 11pt !important;
+  line-height: 1.25 !important;
+  text-align: justify;
+  outline: none;
+  cursor: text;
+  white-space: normal;
+  word-break: break-word;
+  transition: box-shadow 0.2s ease;
+}
+
+.report-paper:focus {
+  box-shadow: 0 0 0 3px var(--primary), 0 6px 22px rgba(0, 0, 0, 0.2);
+}
+
+/* REGRAS INTERNAS DO TEXTO DO LAUDO (FIDELIDADE AOS MODELOS WORD) */
+.report-paper p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 0 !important;
+  line-height: 1.25 !important;
+  font-size: 11pt !important;
+  color: #000000 !important;
+}
+
+.report-paper .report-title {
+  text-align: center !important;
+  font-weight: bold !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.report-paper .report-blank-line {
+  height: 1.15em;
+  display: block;
+}
+
+.report-paper .report-section-title {
+  font-weight: bold !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  text-transform: uppercase !important;
+}
+
+.report-paper .report-subhead {
+  font-weight: bold !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.report-paper .report-note {
+  font-size: 10pt !important;
+  color: #1a1a1a !important;
+  margin-top: 0 !important;
+}
+
+.report-paper b, .report-paper strong {
+  font-weight: bold !important;
+  color: #000000 !important;
+}
+
+/* ==========================================================================
+   MODAL DE CONFIRMAÇÃO (NOVO EXAME)
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  max-width: 440px;
+  width: 100%;
+  padding: 24px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-dialog-header {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 12px;
+}
+
+.modal-dialog-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal-dialog-body {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.modal-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.btn-modal-cancel {
+  padding: 8px 16px;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-modal-cancel:hover {
+  background: var(--bg-card-hover);
+}
+
+.btn-modal-danger {
+  padding: 8px 16px;
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #ffffff;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-modal-danger:hover {
+  background: #b91c1c;
+}
+
+/* ==========================================================================
+   TOAST DE NOTIFICAÇÃO
+   ========================================================================== */
+.toast-notice {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: #10b981;
+  color: #ffffff;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  z-index: 1100;
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-notice.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ==========================================================================
+   ESTILOS DE IMPRESSÃO
+   ========================================================================== */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .app-header,
+  .form-column,
+  .report-toolbar,
+  .modal-overlay,
+  .toast-notice {
+    display: none !important;
+  }
+
+  .main-wrapper {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .report-column {
+    display: block !important;
+  }
+
+  .report-paper-container {
+    display: block !important;
+  }
+
+  .report-paper {
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    min-height: auto !important;
+  }
+}

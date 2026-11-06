@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>meuultrassom — Obstétrico Simples (16 a 41 semanas)</title>
+  <link rel="stylesheet" href="css/laudo-simples.css">
+</head>
+<body>
+
+  <!-- CABEÇALHO -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="header-brand">
+        <a href="index.html" title="meuultrassom">
+          <img src="assets/logo.png" alt="meuultrassom" class="header-logo">
+        </a>
+        <span class="header-module-badge">Obstétrico Simples (16 a 41 semanas)</span>
+      </div>
+
+      <div class="header-actions">
+        <a href="index.html" class="btn-header-back" title="Voltar à Seleção de Exames">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>Início</span>
+        </a>
+
+        <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Alternar tema" title="Alternar entre tema claro e escuro">
+          <svg id="themeIconSun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="12" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg id="themeIconMoon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTEÚDO PRINCIPAL (SPLIT SCREEN: FORMULÁRIO + LAUDO) -->
+  <main class="main-wrapper">
+
+    <!-- COLUNA ESQUERDA: FORMULÁRIO COMPLETO -->
+    <div class="form-column">
+
+      <!-- 1. CRONOLOGIA GESTACIONAL E DATAÇÃO -->
+      <section class="form-card" id="cardCronologia">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">1</span>
+            <span>Cronologia Gestacional e Datação</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label" for="selDumStatus">A paciente sabe a Data da Última Menstruação (DUM)?</label>
+            <select id="selDumStatus" class="form-select">
+              <option value="sim" selected>Sim, ela sabe a DUM</option>
+              <option value="incerta">DUM incerta / desconhecida</option>
+              <option value="nao">Não informada (Opcional)</option>
+            </select>
+          </div>
+
+          <!-- Bloco DUM (visível quando paciente sabe a DUM) -->
+          <div id="containerDum" class="conditional-panel" style="display: block;">
+            <div class="form-group" id="groupDumData">
+              <label class="form-label" for="inputDum">Data da DUM (DD/MM/AAAA)</label>
+              <input type="text" id="inputDum" class="form-control" maxlength="10" placeholder="ex: 15/05/2026">
+            </div>
+
+            <div id="dumFeedbackBox" class="calc-badge" style="display: none; margin-top: 8px;">
+              <span>Idade Gestacional pela DUM:</span>
+              <strong id="dumIgDisplay">—</strong>
+            </div>
+
+            <!-- Pergunta se deseja usar DUM como padrão -->
+            <div class="form-group" id="groupDumPadrao" style="margin-top: 10px;">
+              <label class="form-label">Usar a data da DUM como idade gestacional padrão?</label>
+              <div class="segmented-btn-group">
+                <button type="button" class="segmented-btn active" id="btnDumPadraoSim">SIM</button>
+                <button type="button" class="segmented-btn" id="btnDumPadraoNao">NÃO</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bloco Datação Alternativa (quando DUM não é usada como referência padrão) -->
+          <div id="containerDatacaoAlternativa" class="conditional-panel" style="display: none; margin-top: 8px;">
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label class="form-label">Selecione o Método Alternativo de Datação:</label>
+              <div class="segmented-btn-group">
+                <button type="button" class="segmented-btn active" id="btnMetodoPrimeiraUsg">Primeira Ultrassonografia</button>
+                <button type="button" class="segmented-btn" id="btnMetodoReferida">IG Referida</button>
+              </div>
+            </div>
+
+            <!-- Opção A: Idade gestacional pela primeira ultrassonografia -->
+            <div id="panelPrimeiraUsg" style="display: block;">
+              <div class="grid-2">
+                <div class="form-group">
+                  <label class="form-label" for="inputPrimeiraUsgData">Data da 1ª Ultrassonografia</label>
+                  <input type="text" id="inputPrimeiraUsgData" class="form-control" maxlength="10" placeholder="DD/MM/AAAA">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">IG naquele exame</label>
+                  <div class="grid-2">
+                    <div class="input-with-unit">
+                      <input type="number" id="inputPrimeiraUsgSem" class="form-control" placeholder="Sem" min="4" max="40">
+                      <span class="input-unit">sem</span>
+                    </div>
+                    <div class="input-with-unit">
+                      <input type="number" id="inputPrimeiraUsgDias" class="form-control" placeholder="Dias" min="0" max="6" value="0">
+                      <span class="input-unit">dias</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="primeiraUsgFeedbackBox" class="calc-badge" style="display: none; margin-top: 8px;">
+                <span>IG Corrigida pela 1ª USG:</span>
+                <strong id="primeiraUsgIgDisplay">—</strong>
+              </div>
+            </div>
+
+            <!-- Opção B: Idade gestacional referida -->
+            <div id="panelIgReferida" style="display: none;">
+              <div class="form-group">
+                <label class="form-label">Idade Gestacional Referida</label>
+                <div class="grid-2">
+                  <div class="input-with-unit">
+                    <input type="number" id="inputIgReferidaSem" class="form-control" min="16" max="41" placeholder="16 a 41">
+                    <span class="input-unit">sem</span>
+                  </div>
+                  <div class="input-with-unit">
+                    <input type="number" id="inputIgReferidaDias" class="form-control" min="0" max="6" value="0">
+                    <span class="input-unit">dias</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Destaque da Idade Gestacional de Referência Vigente do Exame -->
+          <div id="badgeIgDestaque" class="calc-badge highlight" style="margin-top: 6px;">
+            <span>Idade Gestacional de Referência:</span>
+            <strong id="displayIgVigente">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. ESTÁTICA FETAL E VITALIDADE (GESTATAÇÃO ÚNICA EXCLUSIVA) -->
+      <section class="form-card" id="cardEstatica">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">2</span>
+            <span>Estática Fetal e Vitalidade</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label" for="selSituacao">Situação</label>
+              <select id="selSituacao" class="form-select">
+                <option value="longitudinal" selected>Longitudinal</option>
+                <option value="transversa">Transversa</option>
+                <option value="obliqua">Oblíqua</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="selApresentacao">Apresentação</label>
+              <select id="selApresentacao" class="form-select">
+                <option value="cefalica" selected>Cefálica</option>
+                <option value="pelvica">Pélvica</option>
+                <option value="cormica">Córmica</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="selDorso">Posição do Dorso</label>
+              <select id="selDorso" class="form-select">
+                <option value="direita" selected>À Direita</option>
+                <option value="esquerda">À Esquerda</option>
+                <option value="anterior">Anterior</option>
+                <option value="posterior">Posterior</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="selMovimentacao">Movimentação Fetal</label>
+            <select id="selMovimentacao" class="form-select">
+              <option value="ativa_normal" selected>Ativa e normal</option>
+              <option value="presente_diminuida">Presente, porém diminuída</option>
+              <option value="ausente">Não visibilizada</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. FREQUÊNCIA CARDÍACA FETAL (BCF) -->
+      <section class="form-card" id="cardBcf">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">3</span>
+            <span>Frequência Cardíaca Fetal (BCF)</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label" for="inputFcf">
+              <span>Freqüência Cardíaca Fetal (BCF)</span>
+              <span class="form-label-help">Normalidade: 110 a 160 bpm</span>
+            </label>
+            <div class="input-with-unit">
+              <input type="number" id="inputFcf" class="form-control" placeholder="ex: 142" min="60" max="220">
+              <span class="input-unit">bpm</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. PLACENTA E CORDÃO UMBILICAL -->
+      <section class="form-card" id="cardPlacenta">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">4</span>
+            <span>Placenta e Cordão Umbilical</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label" for="selPlacentaInsercao">Inserção Placentária</label>
+              <select id="selPlacentaInsercao" class="form-select">
+                <option value="corporal anterior" selected>Corporal anterior</option>
+                <option value="corporal posterior">Corporal posterior</option>
+                <option value="corporal lateral direita">Corporal lateral direita</option>
+                <option value="corporal lateral esquerda">Corporal lateral esquerda</option>
+                <option value="fúndica">Fúndica</option>
+                <option value="baixa, não prévia">Baixa, não prévia</option>
+                <option value="prévia total">Prévia total</option>
+                <option value="prévia parcial">Prévia parcial</option>
+                <option value="marginal">Marginal</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="selPlacentaGrau">Grau de Grannum</label>
+              <select id="selPlacentaGrau" class="form-select">
+                <option value="0">Grau 0</option>
+                <option value="I" selected>Grau I</option>
+                <option value="II">Grau II</option>
+                <option value="III">Grau III</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputPlacentaEspessura">Espessura Placentária</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputPlacentaEspessura" class="form-control" placeholder="ex: 28" min="5" max="80">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="selCordao">Cordão Umbilical</label>
+              <select id="selCordao" class="form-select">
+                <option value="tres_vasos" selected>Constituído de 3 vasos, sem alterações</option>
+                <option value="arteria_unica">Artéria umbilical única (2 vasos)</option>
+                <option value="circular">Circular cervical de cordão umbilical</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. LÍQUIDO AMNIÓTICO (ILA) -->
+      <section class="form-card" id="cardLiquido">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">5</span>
+            <span>Líquido Amniótico (ILA)</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <!-- Apenas dois campos mantidos -->
+          <div class="grid-2">
+            <div class="form-group" id="groupIla">
+              <label class="form-label" for="inputIla">Índice de Líquido Amniótico (ILA)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputIla" class="form-control" placeholder="mm (soma dos 4 quadrantes)" min="0" max="400">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputMaiorBolsao">Maior bolsão vertical</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputMaiorBolsao" class="form-control" placeholder="mm (normal: 20 a 80)" min="0" max="180">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mensagem informativa da Referência Automática do ILA -->
+          <div class="ila-reference-badge" id="ilaRefDisplay">
+            <strong>Referência do ILA:</strong> <span id="ilaRefTexto">Calculando...</span>
+          </div>
+
+          <!-- Indicador discreto de normalidade -->
+          <div id="ilaFeedbackNormal" class="calc-badge alert-success" style="display: none;">
+            <span>✓ Líquido amniótico dentro dos parâmetros de referência para esta idade gestacional.</span>
+          </div>
+
+          <!-- Alerta visual informando valor fora da referência -->
+          <div id="ilaFeedbackAlerta" class="calc-badge alert-warning" style="display: none;">
+            <span id="ilaAlertaTexto">⚠ Atenção: valor do ILA fora do intervalo de referência.</span>
+          </div>
+
+          <!-- Opções de classificação disponibilizadas quando houver alteração (ou sob demanda) -->
+          <div id="panelIlaClassificacao" class="conditional-panel" style="display: none; margin-top: 6px;">
+            <div class="form-group">
+              <label class="form-label" for="selIlaClassificacao">Classificação Descritiva para o Laudo e Conclusão:</label>
+              <select id="selIlaClassificacao" class="form-select">
+                <option value="normal">Volume de líquido amniótico normal para a idade gestacional</option>
+                <option value="diminuido">Volume no limite inferior da normalidade para a idade gestacional</option>
+                <option value="oligoidramnio">Volume acentuadamente diminuído (oligoidrâmnio)</option>
+                <option value="aumentado">Volume no limite superior da normalidade para a idade gestacional</option>
+                <option value="polidramnio">Volume acentuadamente aumentado (polidrâmnio)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. MORFOLOGIA FETAL -->
+      <section class="form-card" id="cardMorfologia">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">6</span>
+            <span>Morfologia Fetal Básica</span>
+          </h2>
+          <div class="segmented-btn-group" style="width: auto;">
+            <button type="button" class="segmented-btn active" id="btnMorfoPadrao">Padrão Habitual</button>
+            <button type="button" class="segmented-btn" id="btnMorfoPersonalizada">Personalizada</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div id="morfoPadraoInfo" class="calc-badge">
+            <span>Morfologia fetal descrita nos padrões de normalidade clínica habitual (polo cefálico, tórax, abdome, membros e coluna vertebral).</span>
+          </div>
+
+          <div id="morfoPersonalizadaPanel" class="conditional-panel" style="display: none;">
+            <div class="form-group">
+              <label class="form-label" for="inputMorfoObs">Observações ou Alterações Morfológicas</label>
+              <textarea id="inputMorfoObs" class="form-control" rows="3" placeholder="Descreva aqui eventuais particularidades ou variações anatômicas..."></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. BIOMETRIA FETAL E ESTIMATIVA DE PESO (HADLOCK) -->
+      <section class="form-card" id="cardBiometria">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">7</span>
+            <span>Biometria Fetal e Peso (Hadlock)</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label" for="inputDbp">DBP (Diâmetro Biparietal)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputDbp" class="form-control" placeholder="ex: 72" min="10" max="120" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputDof">DOF (Occipitofrontal)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputDof" class="form-control" placeholder="ex: 92" min="15" max="150" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputCc">CC (Circunf. Craniana)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputCc" class="form-control" placeholder="ex: 260" min="50" max="400" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label" for="inputCa">CA (Circunf. Abdominal)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputCa" class="form-control" placeholder="ex: 240" min="50" max="420" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputCf">CF (Comprimento Fêmur)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputCf" class="form-control" placeholder="ex: 54" min="10" max="95" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="inputCu">CU (Comprimento Úmero)</label>
+              <div class="input-with-unit">
+                <input type="number" id="inputCu" class="form-control" placeholder="ex: 48" min="10" max="85" step="0.1">
+                <span class="input-unit">mm</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Índices e Cálculos Biométricos em Tempo Real -->
+          <div class="grid-2">
+            <div class="calc-badge">
+              <span>Índice CC/CA:</span>
+              <strong id="displayCcCa">—</strong>
+            </div>
+
+            <div class="calc-badge">
+              <span>Índice Cefálico DBP/DOF:</span>
+              <strong id="displayDbfDof">—</strong>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="calc-badge highlight">
+              <span>Peso Fetal Estimado (Hadlock):</span>
+              <strong id="displayPesoFetal">— g ± 10%</strong>
+            </div>
+
+            <div class="calc-badge highlight">
+              <span>Percentil de Peso (Hadlock):</span>
+              <strong id="displayPercentilPeso">—</strong>
+            </div>
+          </div>
+
+          <div class="calc-badge">
+            <span>IG Estimada pela Biometria Fetal:</span>
+            <strong id="displayIgBiometria">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. CONCLUSÃO E OBSERVAÇÕES -->
+      <section class="form-card" id="cardConclusao">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span class="card-number">8</span>
+            <span>Conclusão e Observações</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label" for="selConclusaoCrescimento">Desenvolvimento Fetal</label>
+              <select id="selConclusaoCrescimento" class="form-select">
+                <option value="adequado" selected>Adequado desenvolvimento fetal</option>
+                <option value="restricao">Restrição de crescimento intrauterino (RCIU)</option>
+                <option value="macrossomia">Compatível com macrossomia fetal</option>
+                <option value="pigm">Feto pequeno para a idade gestacional (PIG)</option>
+                <option value="gigm">Feto grande para a idade gestacional (GIG)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="selConclusaoVitalidade">Vitalidade Fetal</label>
+              <select id="selConclusaoVitalidade" class="form-select">
+                <option value="adequada" selected>Movimentação fetal adequada</option>
+                <option value="reduzida">Movimentação fetal reduzida</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inputConclusaoObs">Observações Adicionais na Conclusão (Opcional)</label>
+            <input type="text" id="inputConclusaoObs" class="form-control" placeholder="ex: Controle de crescimento sugerido em 3 a 4 semanas.">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" style="margin-bottom: 6px;">Nota Médica Legal ao Final do Laudo</label>
+            <div class="segmented-btn-group">
+              <button type="button" class="segmented-btn active" id="btnNotaFinalSim">Incluir Nota Padrão</button>
+              <button type="button" class="segmented-btn" id="btnNotaFinalNao">Não Incluir</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- COLUNA DIREITA: VISUALIZAÇÃO DO LAUDO (SIMULAÇÃO A4) -->
+    <div class="report-column">
+      
+      <!-- BARRA DE FERRAMENTAS DO LAUDO -->
+      <div class="report-toolbar">
+        <div class="toolbar-status">
+          <span class="badge-status-dot"></span>
+          <span id="laudoStatusText">Laudo Dinâmico Sincronizado</span>
+          <span id="manualEditBadge" class="manual-edit-indicator" style="display:none;">Edição Manual</span>
+        </div>
+
+        <div class="toolbar-actions">
+          <button type="button" class="btn-report-tool btn-secondary-tool" id="btnRestaurarLaudo" title="Restaurar texto automático a partir do formulário" style="display:none;">
+            Restaurar
+          </button>
+          <button type="button" class="btn-report-tool btn-secondary-tool" id="btnNovoExame" title="Limpar formulário e iniciar novo exame">
+            Novo
+          </button>
+          <button type="button" class="btn-report-tool btn-secondary-tool" id="btnImprimir" title="Imprimir laudo ou salvar como PDF">
+            Imprimir
+          </button>
+          <button type="button" class="btn-report-tool btn-copy" id="btnCopiarLaudo" title="Copiar laudo com formatação rica para o Word">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>COPIAR LAUDO</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- FOLHA DE LAUDO (SIMULAÇÃO A4 DA CLÍNICA) -->
+      <div class="report-paper-container">
+        <div id="reportPaper" class="report-paper" contenteditable="true" spellcheck="false">
+          <!-- Conteúdo gerado dinamicamente com fidelidade aos modelos Word de 16 a 41 semanas -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL DE CONFIRMAÇÃO DE NOVO EXAME -->
+  <div id="modalNovoExame" class="modal-overlay">
+    <div class="modal-dialog">
+      <div class="modal-dialog-header">
+        <h3 class="modal-dialog-title">Iniciar Novo Exame?</h3>
+      </div>
+      <div class="modal-dialog-body">
+        Todos os dados preenchidos e eventuais edições no laudo serão resetados para o padrão. Deseja continuar?
+      </div>
+      <div class="modal-dialog-footer">
+        <button type="button" class="btn-modal-cancel" id="btnModalCancel">Cancelar</button>
+        <button type="button" class="btn-modal-danger" id="btnModalConfirm">Iniciar Novo Exame</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST DE NOTIFICAÇÃO -->
+  <div id="toastNotice" class="toast-notice">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <span id="toastMessage">Laudo copiado com formatação rica para o Word!</span>
+  </div>
+
+  <!-- SCRIPT MODULAR DO NOVO MÓDULO (INDEPENDENTE) -->
+  <script src="js/laudo-simples.js"></script>
+</body>
+</html>

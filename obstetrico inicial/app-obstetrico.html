@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THI RADS - Laudo Obstétrico</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/dr-fetal.css">
+</head>
+<body class="dark-mode">
+
+<div class="split-layout">
+  
+  <!-- COLUNA ESQUERDA: FORMULÁRIOS -->
+  <div class="form-column">
+    <header>
+      <h1>THI RADS</h1>
+      <button id="theme-toggle" class="btn-icon" title="Alternar Tema Claro/Escuro">🌓</button>
+    </header>
+
+    <!-- HOME VIEW -->
+    <div id="view-home" class="view active">
+      <button class="btn btn-back" style="margin-bottom: 20px; width: 100%; border: 1px solid var(--card-border);" onclick="window.location.href='laudo-thirads.html'">← VOLTAR AO PORTAL THI-RADS</button>
+      <div class="menu-card" onclick="abrirForm('doppler')">OBSTÉTRICO COM DOPPLER</div>
+      <div class="menu-card" onclick="abrirForm('sem-doppler')">OBSTÉTRICO SEM DOPPLER</div>
+      <div class="menu-card" onclick="abrirForm('inicial')">OBSTÉTRICO INICIAL</div>
+    </div>
+
+    <!-- DOPPLER / SEM DOPPLER VIEW -->
+    <div id="view-form-doppler" class="view">
+      <button class="btn btn-back" onclick="voltar()">← VOLTAR</button>
+
+      <div class="card accent-border">
+        <div class="section-header">1. Cronologia e Dados Clínicos</div>
+        
+        <div class="field">
+          <label>A paciente sabe a Data da Última Menstruação (DUM)?</label>
+          <select id="dum_disp_doppler">
+            <option value="sim">Sim, ela sabe</option>
+            <option value="nao">Não sabe / Incerta</option>
+          </select>
+        </div>
+
+        <div id="div_dum_doppler">
+          <div class="grid-2">
+            <div class="field">
+              <label>Data da DUM</label>
+              <input type="text" id="dum" maxlength="10" placeholder="dd/mm/aaaa" oninput="maskData(this)">
+            </div>
+            <div class="field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+              <span id="dum_doppler_calc_display" class="feedback-text" style="margin-bottom: 0.6rem;">Aguardando data...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>Método para Cálculos de Idade Gestacional</label>
+          <select id="origem_ig">
+            <option value="DUM">DUM (Data da Última Menstruação)</option>
+            <option value="referida">Idade Gestacional Referida</option>
+            <option value="exame_previo">Exame Ultrassonográfico Prévio</option>
+          </select>
+        </div>
+        
+        <div id="div_origem_exame_previo" style="display:none; padding: 0.8rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+          <div class="grid-2">
+            <div class="field">
+              <label>Data do Exame Prévio</label>
+              <input type="text" id="exame_previo_data" maxlength="10" placeholder="dd/mm/aaaa" oninput="maskData(this)">
+            </div>
+            <div class="field">
+              <label>IG no Exame Prévio</label>
+              <div class="grid-2" style="gap: 5px;">
+                <input type="number" id="exame_previo_sem" placeholder="Sem">
+                <input type="number" id="exame_previo_dias" placeholder="Dias">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>Idade Gestacional Calculada / Atual</label>
+          <div class="grid-2">
+            <input type="number" id="ig_sem" placeholder="Semanas" oninput="calcularPesoEPerc(); atualizarFraseILA();">
+            <input type="number" id="ig_dias" value="0" placeholder="Dias" oninput="calcularPesoEPerc();">
+          </div>
+          <div class="field" style="margin-top: 8px;">
+            <span id="ig_calc_display" class="feedback-text">Insira os dados ou digite a idade manualmente.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">Estática e BCF</div>
+        <div class="grid-2">
+          <div class="field">
+            <label>Situação</label>
+            <select id="situacao">
+              <option value="longitudinal">Longitudinal</option>
+              <option value="transversa">Transversa</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Apresentação</label>
+            <select id="apresentacao">
+              <option value="cefálica">Cefálica</option>
+              <option value="pélvica">Pélvica</option>
+              <option value="córmica">Córmica</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Dorso</label>
+          <select id="dorso">
+            <option value="à esquerda">À Esquerda</option>
+            <option value="à direita">À Direita</option>
+            <option value="anterior">Anterior</option>
+            <option value="posterior">Posterior</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>BCF (bpm)</label>
+          <input type="number" id="bcf">
+        </div>
+      </div>
+
+      <div class="card accent-border">
+        <div class="section-header">Biometria e Peso</div>
+        
+        <div class="field" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed var(--card-border);">
+          <label>Opções do Laudo</label>
+          <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 5px;">
+            <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+              <input type="checkbox" id="exibir_percentis"> Mostrar Percentis na Tabela
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+              <input type="checkbox" id="exibir_indices"> Mostrar Índices Biométricos
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+              <input type="checkbox" id="exibir_umero" checked> Incluir Úmero
+            </label>
+            <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+              <input type="checkbox" id="exibir_estatura" checked> Mostrar estatura fetal estimada
+            </label>
+          </div>
+        </div>
+
+        <div class="grid-4">
+          <div class="field"><label>DBP (mm)</label><input type="number" id="dbp" oninput="calcularPesoEPerc()"></div>
+          <div class="field"><label>CC (mm)</label><input type="number" id="cc" oninput="calcularPesoEPerc()"></div>
+          <div class="field"><label>CA (mm)</label><input type="number" id="ca" oninput="calcularPesoEPerc()"></div>
+          <div class="field"><label>CF (mm)</label><input type="number" id="cf" oninput="calcularPesoEPerc()"></div>
+        </div>
+        <div class="grid-4" id="div_umero" style="margin-top: 10px;">
+          <div class="field"><label>Úmero (mm)</label><input type="number" id="umero" oninput="calcularPesoEPerc()"></div>
+        </div>
+        
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+          <div>
+            <label>Peso Estimado</label>
+            <span id="peso_display" class="hud-val">---</span>
+          </div>
+          <div style="text-align: right;">
+            <label>Percentil Peso</label>
+            <span id="p_display" class="hud-val">---</span>
+          </div>
+          <input type="hidden" id="peso">
+          <input type="hidden" id="p_peso">
+          <input type="hidden" id="p_peso_raw">
+          <input type="hidden" id="p_ca_raw">
+          <input type="hidden" id="p_umb_raw">
+          <input type="hidden" id="p_cer_raw">
+          <input type="hidden" id="p_rcp_raw">
+          <input type="hidden" id="p_ut_medio_raw">
+          <input type="hidden" id="p_dv_raw">
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">Placenta e Líquido Amniótico</div>
+        <div class="field">
+          <label>ILA (cm)</label>
+          <input type="number" id="ila" step="0.1" oninput="atualizarFraseILA()">
+          <div id="ila_info" class="feedback-text"></div>
+        </div>
+        <div class="field">
+          <label>Maior Bolsão (cm)</label>
+          <input type="text" id="maior_bolsao" oninput="atualizarFraseILA()">
+        </div>
+        <div class="field">
+          <label>Placenta</label>
+          <div class="grid-2">
+            <select id="placenta_local">
+              <option value="anterior">Anterior</option>
+              <option value="posterior">Posterior</option>
+              <option value="fúndica">Fúndica</option>
+              <option value="lateral direita">Lateral Direita</option>
+              <option value="lateral esquerda">Lateral Esquerda</option>
+            </select>
+            <select id="placenta_grau">
+              <option value="0">Grau 0</option>
+              <option value="I">Grau I</option>
+              <option value="II">Grau II</option>
+              <option value="III">Grau III</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-top: 10px;">
+          <label>Espessura Placentária (cm)</label>
+          <input type="number" id="espessura_placenta" step="0.1" placeholder="Ex: 3.5">
+        </div>
+        <input type="hidden" id="frase_ila">
+      </div>
+
+      <div class="card accent-border" id="card-doppler">
+        <div class="section-header">Doppler</div>
+        
+        <div class="field" style="margin-bottom: 15px;">
+          <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+            <input type="checkbox" id="exibir_uterinas" onchange="updatePreview(); document.getElementById('div_uterinas').style.display = this.checked ? 'block' : 'none';"> Incluir Artérias Uterinas
+          </label>
+          <label style="display: flex; align-items: center; gap: 5px; font-weight: normal; font-size: 0.9rem;">
+            <input type="checkbox" id="exibir_ducto" onchange="updatePreview(); document.getElementById('div_ducto').style.display = this.checked ? 'block' : 'none';"> Incluir Ducto Venoso
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <div class="field"><label>IP Umb</label><input type="text" id="ip_u" oninput="calcularDopplerAutomatico()"></div>
+          <div class="field"><label>P. Umb</label><input type="text" id="p_umb" readonly></div>
+          <div class="field"><label>IP Cer</label><input type="text" id="ip_c" oninput="calcularDopplerAutomatico()"></div>
+          <div class="field"><label>P. Cer</label><input type="text" id="p_cer" readonly></div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>RCP (IPc/IPu)</label>
+            <input type="text" id="relacao" readonly>
+          </div>
+          <div class="field">
+            <label>Percentil RCP</label>
+            <input type="text" id="p_rcp" readonly>
+          </div>
+        </div>
+
+        <div id="div_uterinas" style="display:none; margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
+          <div style="font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;">Artérias Uterinas</div>
+          <div class="grid-2">
+            <div class="field"><label>IP Direita</label><input type="number" step="0.01" id="ip_utd" oninput="calcularDopplerAutomatico()"></div>
+            <div class="field"><label>P. Direita</label><input type="text" id="p_utd" readonly></div>
+            <div class="field"><label>IP Esquerda</label><input type="number" step="0.01" id="ip_ute" oninput="calcularDopplerAutomatico()"></div>
+            <div class="field"><label>P. Esquerda</label><input type="text" id="p_ute" readonly></div>
+            <div class="field"><label>IP Médio</label><input type="text" id="ip_ut_medio" readonly></div>
+            <div class="field"><label>P. Médio</label><input type="text" id="p_ut_medio" readonly></div>
+          </div>
+        </div>
+
+        <div id="div_ducto" style="display:none; margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
+          <div style="font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;">Ducto Venoso</div>
+          <div class="grid-2">
+            <div class="field"><label>IP</label><input type="number" step="0.01" id="ip_dv" oninput="calcularDopplerAutomatico()"></div>
+            <div class="field"><label>Percentil</label><input type="text" id="p_dv" readonly></div>
+            <div class="field">
+              <label>Onda A</label>
+              <select id="onda_a_dv" onchange="updatePreview()">
+                <option value="positiva">Positiva</option>
+                <option value="ausente">Ausente</option>
+                <option value="reversa">Reversa</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-form-inicial" class="view">
+      <button class="btn btn-back" onclick="voltar()">← VOLTAR</button>
+
+      <div class="card accent-border">
+        <div class="section-header">1. Informações da Paciente (DUM)</div>
+        
+        <div class="field">
+          <label>A paciente sabe a Data da Última Menstruação (DUM)?</label>
+          <select id="dum_disp_inic">
+            <option value="sim">Sim, ela sabe</option>
+            <option value="nao">Não tem / Não sabe</option>
+          </select>
+        </div>
+        
+        <div id="div_dum_inic">
+          <div class="grid-2">
+            <div class="field">
+              <label>Digite a Data da DUM</label>
+              <input type="text" id="dum_data_inic" maxlength="10" placeholder="ex: 15/01/2026">
+            </div>
+            <div class="field" style="display: flex; flex-direction: column; justify-content: flex-end;">
+              <span id="dum_calc_display" class="feedback-text" style="margin-bottom: 0.6rem;">Aguardando data...</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>A paciente já fez algum exame de obstétrico inicial nesta gestação?</label>
+          <select id="exame_ant_disp">
+            <option value="nao">Não</option>
+            <option value="sim">Sim, ela já fez</option>
+          </select>
+        </div>
+
+        <div id="div_exame_ant" style="display:none; padding: 0.8rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+          <div class="grid-2">
+            <div class="field">
+              <label>Data do Exame Anterior</label>
+              <input type="text" id="exame_ant_data" maxlength="10" placeholder="ex: 10/01/2026">
+            </div>
+            <div class="field">
+              <label>IG no Exame Anterior</label>
+              <div class="grid-2" style="gap: 5px;">
+                <input type="number" id="exame_ant_sem" placeholder="Sem">
+                <input type="number" id="exame_ant_dias" placeholder="Dias">
+              </div>
+            </div>
+          </div>
+          <div class="field" style="margin-top: 8px;">
+             <span id="exame_ant_calc_display" class="feedback-text">Aguardando dados do exame anterior...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">2. Útero e Saco Gestacional</div>
+        
+        <div class="field">
+          <label>Qual a posição do Útero?</label>
+          <select id="posicao_utero">
+            <option value="em anteversoflexão">Anteversoflexão (AVF)</option>
+            <option value="em retroversoflexão">Retroversoflexão (RVF)</option>
+            <option value="em posição intermediária">Intermediária</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Medidas do Saco Gestacional (mm)</label>
+          <div class="grid-3">
+            <input type="number" id="sg_a" placeholder="D1 (mm)" step="0.1" oninput="calcInic()">
+            <input type="number" id="sg_b" placeholder="D2 (mm)" step="0.1" oninput="calcInic()">
+            <input type="number" id="sg_c" placeholder="D3 (mm)" step="0.1" oninput="calcInic()">
+          </div>
+          <div class="display-box" id="display_medio_inic" style="margin-top: 8px;">
+            MÉDIO: 0.0 mm
+          </div>
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>Existe Hematoma Retrocoriônico?</label>
+          <select id="tem_hematoma">
+            <option value="nao">Não</option>
+            <option value="sim">Sim, existe</option>
+          </select>
+        </div>
+        
+        <div id="div_hematoma" style="display:none; padding: 0.8rem; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 0.8rem;">
+          <div class="field">
+            <label>Qual a Parede do Hematoma?</label>
+            <select id="hematoma_parede">
+              <option value="anterior">Anterior</option>
+              <option value="inferior">Inferior</option>
+              <option value="lateral">Lateral</option>
+              <option value="posterior">Posterior</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Medidas do Hematoma (mm)</label>
+            <div class="grid-3">
+              <input type="number" id="hem_a" placeholder="D1" step="0.1">
+              <input type="number" id="hem_b" placeholder="D2" step="0.1">
+              <input type="number" id="hem_c" placeholder="D3" step="0.1">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">3. Vesícula Vitelina e Embrião</div>
+        
+        <div class="field">
+          <label>Vesícula Vitelina Visualizada?</label>
+          <select id="tem_vv">
+            <option value="sim">Sim (Presente)</option>
+            <option value="nao">Não visualizada</option>
+          </select>
+        </div>
+        <div class="field" id="div_vv_inic">
+          <input type="number" id="vv_mm_inic" step="0.1" placeholder="Medida da Vesícula (mm)">
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>Embrião Visualizado?</label>
+          <select id="tem_emb_inic">
+            <option value="sim">Sim (Presente)</option>
+            <option value="nao">Não visualizado</option>
+          </select>
+        </div>
+        <div id="div_emb_inic" style="display:block; padding: 0.8rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+          <div class="grid-2">
+            <div class="field">
+              <label>Comprimento (CCN) mm</label>
+              <input type="number" id="ccn_inic" step="0.1" placeholder="ex: 18">
+            </div>
+            <div class="field">
+              <label>Batimentos (BCF) bpm</label>
+              <input type="number" id="bcf_inic" placeholder="ex: 150">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-header">4. Ovários e Conclusão</div>
+        
+        <div class="field">
+          <label>Avaliação dos Ovários</label>
+          <select id="sel_ovarios_inic">
+            <option value="normais">Ambos visíveis e normais</option>
+            <option value="nenhum">Nenhum ovário visualizado</option>
+            <option value="so_direito">Apenas o DIREITO foi visualizado</option>
+            <option value="so_esquerdo">Apenas o ESQUERDO foi visualizado</option>
+          </select>
+        </div>
+
+        <div class="field" style="margin-top: 15px; border-top: 1px dashed var(--card-border); padding-top: 15px;">
+          <label>Diagnóstico Específico (Laudo)</label>
+          <select id="restos_ovulares">
+            <option value="nao">Gestação Habitual (Normal)</option>
+            <option value="sim">É caso de Restos Ovulares?</option>
+          </select>
+        </div>
+        <div id="div_espessura_restos" style="display:none; padding: 0.8rem; background: rgba(255,255,255,0.05); border-radius: 8px;">
+          <div class="field">
+            <label>Espessura do Material (mm)</label>
+            <input type="number" id="espessura_restos_mm" step="0.1" placeholder="ex: 15">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUNA DIREITA: EDITOR DE LAUDO -->
+  <div class="report-column">
+    <div class="editor-header">
+      <span style="font-family: 'Orbitron'; font-size: 0.9rem; color: var(--text-muted);">VISUALIZAÇÃO DO LAUDO</span>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-novo-exame" onclick="abrirModalNovoExame()">NOVO EXAME</button>
+        <button class="btn copy-btn" onclick="copyRichText()">COPIAR LAUDO</button>
+      </div>
+    </div>
+    
+    <!-- Este container simula uma página em branco A4 (estilo Word) -->
+    <div class="editor-container">
+      <div id="report-editor" class="report-editor" contenteditable="true">
+        <div style="color: #94a3b8; text-align: center; font-family: Helvetica, Arial, sans-serif; font-size: 10pt;">
+          Selecione um exame na coluna ao lado para gerar o laudo padrão...
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal Novo Exame -->
+<div id="modal-novo-exame" class="modal-overlay">
+  <div class="modal-content">
+    <h3>Iniciar novo exame?</h3>
+    <p>Todos os dados do exame atual serão removidos da tela. Esta ação não poderá ser desfeita.</p>
+    <div class="modal-actions">
+      <button class="btn btn-back" style="margin: 0; align-self: center;" onclick="fecharModalNovoExame()">Cancelar</button>
+      <button class="btn btn-danger" onclick="limparNovoExame()">Iniciar novo exame</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="toast">Laudo copiado!</div>
+
+<!-- Scripts -->
+<script src="js/calculos.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/app.js"></script>
+<script src="js/doppler-interpretacao.js"></script>
+<script src="js/dr-fetal.js"></script>
+
+</body>
+</html>
