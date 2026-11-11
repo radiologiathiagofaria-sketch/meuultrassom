@@ -91,7 +91,12 @@
       }
     },
     fundoDouglas: 'livre', // 'livre' | 'pequena' | 'moderada' | 'acentuada'
-    isManualEdit: false
+    isManualEdit: false,
+    manualEditBlocks: new Set(),
+    deletedBlocks: new Set(),
+    lastGeneratedBlocks: {},
+    userEditedSlots: {},      // { blockId: Set<slotId> } – slots editados manualmente
+    lastGeneratedSlots: {},   // { blockId: { slotId: html } } – último valor gerado por slot
   };
 
   // =========================================================================
@@ -466,10 +471,8 @@
       state.ovarioEsquerdo.volume = null;
     }
 
-    // Atualiza a pré-visualização do laudo (somente se o médico não estiver em edição manual)
-    if (!state.isManualEdit) {
-      renderReportText();
-    }
+    // Atualiza a pré-visualização do laudo (sincronização inteligente preservando trechos manuais)
+    renderReportText();
   }
 
   // =========================================================================
@@ -477,27 +480,378 @@
   // Referência oficial: obstetrico inicial com embriao normal.docx
   // =========================================================================
 
+  function normalizeContent(str) {
+    if (!str) return '';
+    return str.replace(/&nbsp;/g, ' ')
+              .replace(/[\s\r\n]+/g, ' ')
+              .trim();
+  }
+
+  // Retorna a chave unificada do slot para um elemento (ex: 'dynamic:bio_sem' ou 'static:s1')
+  function getSlotKeyFromElement(el) {
+    if (!el || !el.getAttribute) return null;
+    const dyn = el.getAttribute('data-slot');
+    if (dyn) return `dynamic:${dyn}`;
+    const st = el.getAttribute('data-static-slot');
+    if (st) return `static:${st}`;
+    return null;
+  }
+
+  // Localiza o elemento de um slot (dinâmico ou estático) dentro de um contêiner
+  function findSlotElement(container, slotKey) {
+    if (!container || !slotKey) return null;
+    if (slotKey.startsWith('dynamic:')) {
+      return container.querySelector(`[data-slot="${slotKey.slice(8)}"]`);
+    }
+    if (slotKey.startsWith('static:')) {
+      return container.querySelector(`[data-static-slot="${slotKey.slice(7)}"]`);
+    }
+    return null;
+  }
+
+  // Retorna o conjunto de todas as chaves de slot presentes no elemento DOM
+  function getDomSlotKeys(container) {
+    if (!container) return new Set();
+    const keys = new Set();
+    container.querySelectorAll('[data-slot]').forEach(el => {
+      keys.add(`dynamic:${el.getAttribute('data-slot')}`);
+    });
+    container.querySelectorAll('[data-static-slot]').forEach(el => {
+      keys.add(`static:${el.getAttribute('data-static-slot')}`);
+    });
+    return keys;
+  }
+
+  // Extrai os valores de todos os slots (dinâmicos e estáticos) de um fragmento HTML
+  function extractSlots(html) {
+    if (!html) return {};
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    const slots = {};
+    temp.querySelectorAll('[data-slot]').forEach(el => {
+      slots[`dynamic:${el.getAttribute('data-slot')}`] = el.innerHTML;
+    });
+    temp.querySelectorAll('[data-static-slot]').forEach(el => {
+      slots[`static:${el.getAttribute('data-static-slot')}`] = el.innerHTML;
+    });
+    return slots;
+  }
+
+  // Identifica o elemento ativo sob o cursor (caret) dentro de um contêiner contenteditable
+  function getActiveCaretElement(container) {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    let node = range.startContainer || sel.anchorNode;
+    if (!node) return null;
+
+    let el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+
+    if (node.nodeType === Node.ELEMENT_NODE && node.childNodes.length > 0) {
+      const offset = Math.min(range.startOffset, node.childNodes.length - 1);
+      const child = node.childNodes[offset];
+      if (child) {
+        el = child.nodeType === Node.TEXT_NODE ? child.parentElement : child;
+      }
+    }
+
+    if (el && container.contains(el) && el !== container) {
+      return el;
+    }
+    return null;
+  }
+
+  function updateManualEditStatus() {
+    if (!dom.reportPaper) return;
+
+    let hasEdits = false;
+
+    // 1. Blocos sem slots congelados
+    if (state.manualEditBlocks.size > 0) hasEdits = true;
+
+    // 2. Slots individualmente editados pelo usuário
+    if (!hasEdits && Object.values(state.userEditedSlots).some(s => s && s.size > 0)) hasEdits = true;
+
+    // 3. Blocos deletados manualmente
+    if (!hasEdits && state.deletedBlocks && state.deletedBlocks.size > 0) hasEdits = true;
+
+    // 4. Parágrafos adicionados manualmente (fora de qualquer data-block)
+    if (!hasEdits && dom.reportPaper.querySelectorAll('[data-custom="true"]').length > 0) hasEdits = true;
+
+    // 5. Verificação DOM: detecta qualquer bloco com texto divergente do gerado
+    if (!hasEdits) {
+      const domBlocks = dom.reportPaper.querySelectorAll(':scope > [data-block]');
+      for (let i = 0; i < domBlocks.length; i++) {
+        const el = domBlocks[i];
+        const id = el.getAttribute('data-block');
+        if (el.getAttribute('data-manual-edit') === 'true') {
+          hasEdits = true;
+          break;
+        }
+        if (state.lastGeneratedBlocks[id] !== undefined) {
+          if (normalizeContent(el.innerHTML) !== normalizeContent(state.lastGeneratedBlocks[id])) {
+            hasEdits = true;
+            break;
+          }
+        }
+      }
+    }
+
+    state.isManualEdit = hasEdits;
+
+    if (dom.manualEditBadge) {
+      dom.manualEditBadge.classList.toggle('active', hasEdits);
+      dom.manualEditBadge.style.display = hasEdits ? 'inline-flex' : 'none';
+    }
+
+    if (dom.btnRestaurarLaudo) {
+      dom.btnRestaurarLaudo.style.display = hasEdits ? 'inline-flex' : 'none';
+    }
+  }
+
+  function syncReportBlocks(blocks) {
+    if (!dom.reportPaper) return;
+
+    // ── INICIALIZAÇÃO (laudo vazio): renderiza todos os blocos de uma vez ──────
+    if (!dom.reportPaper.children.length) {
+      dom.reportPaper.innerHTML = blocks.map(b => {
+        const clsAttr = b.className ? ` class="${b.className}"` : '';
+        return `<p${clsAttr} data-block="${b.id}">${b.html}</p>`;
+      }).join('\n');
+
+      state.lastGeneratedBlocks = {};
+      state.lastGeneratedSlots  = {};
+      state.userEditedSlots     = {};
+      blocks.forEach(b => {
+        state.lastGeneratedBlocks[b.id] = b.html;
+        const slots = extractSlots(b.html);
+        if (Object.keys(slots).length) state.lastGeneratedSlots[b.id] = slots;
+      });
+      state.manualEditBlocks.clear();
+      if (state.deletedBlocks) state.deletedBlocks.clear();
+      state.isManualEdit = false;
+      if (dom.manualEditBadge) {
+        dom.manualEditBadge.classList.remove('active');
+        dom.manualEditBadge.style.display = 'none';
+      }
+      if (dom.btnRestaurarLaudo) dom.btnRestaurarLaudo.style.display = 'none';
+      return;
+    }
+
+    // ── SINCRONIZAÇÃO INCREMENTAL bloco a bloco ───────────────────────────────
+    const currentBlockIds = new Set(blocks.map(b => b.id));
+    let lastDomEl = null;
+
+    blocks.forEach(b => {
+      const existingEl = dom.reportPaper.querySelector(`:scope > [data-block="${b.id}"]`);
+
+      if (existingEl) {
+        const newSlots  = extractSlots(b.html);
+        const hasSlots  = Object.keys(newSlots).length > 0;
+        const userSlots = state.userEditedSlots[b.id] || new Set();
+        let customAnchor = existingEl;
+
+        if (hasSlots) {
+          // ── Bloco com slots: RECONCILIAÇÃO ESTRUTURAL COMPLETA ─────────────
+          const newSlotKeys = new Set(Object.keys(newSlots));
+          const domSlotKeys = getDomSlotKeys(existingEl);
+
+          // 1. Criar contêiner temporário com a nova estrutura canônica gerada pelo sistema
+          const temp = document.createElement('div');
+          temp.innerHTML = b.html;
+
+          // 2. Para cada slot da nova estrutura:
+          //    a) Se o slot existia no DOM e foi editado pelo médico, preservar o conteúdo personalizado
+          //    b) Se havia um parágrafo customizado originado deste slot (quando temporariamente órfão), restaurá-lo
+          newSlotKeys.forEach(slotKey => {
+            const targetEl = findSlotElement(temp, slotKey);
+            if (!targetEl) return;
+
+            if (userSlots.has(slotKey)) {
+              const currentEl = findSlotElement(existingEl, slotKey);
+              if (currentEl) {
+                targetEl.innerHTML = currentEl.innerHTML;
+              }
+            } else {
+              // Verificar se existe parágrafo customizado originado deste slot
+              const customOriginEl = dom.reportPaper.querySelector(`[data-custom-origin="${b.id}_${slotKey}"]`);
+              if (customOriginEl) {
+                targetEl.innerHTML = customOriginEl.innerHTML;
+                customOriginEl.remove();
+                if (!state.userEditedSlots[b.id]) state.userEditedSlots[b.id] = new Set();
+                state.userEditedSlots[b.id].add(slotKey);
+              }
+            }
+          });
+
+          // 3. Slots antigos que deixaram de existir na nova estrutura:
+          //    a) Se NÃO foram editados manualmente: são simplesmente descartados.
+          //    b) Se FORAM editados manualmente com texto diferente do gerado originalmente:
+          //       Manter o trecho como conteúdo manual independente (<p data-custom="true">),
+          //       claramente identificado e posicionado imediatamente após o bloco de origem.
+          domSlotKeys.forEach(oldSlotKey => {
+            if (!newSlotKeys.has(oldSlotKey)) {
+              if (userSlots.has(oldSlotKey)) {
+                const oldEl = findSlotElement(existingEl, oldSlotKey);
+                const editedContent = oldEl ? oldEl.innerHTML.trim() : '';
+                const lastGen = (state.lastGeneratedSlots[b.id] && state.lastGeneratedSlots[b.id][oldSlotKey])
+                  ? state.lastGeneratedSlots[b.id][oldSlotKey].trim()
+                  : '';
+
+                // Só preserva como independente se o conteúdo realmente difere do gerado pelo sistema
+                if (editedContent && normalizeContent(editedContent) !== normalizeContent(lastGen)) {
+                  const originKey = `${b.id}_${oldSlotKey}`;
+                  let existingCustom = dom.reportPaper.querySelector(`[data-custom-origin="${originKey}"]`);
+                  if (!existingCustom) {
+                    existingCustom = document.createElement('p');
+                    existingCustom.setAttribute('data-custom', 'true');
+                    existingCustom.setAttribute('data-custom-origin', originKey);
+                  }
+                  existingCustom.innerHTML = editedContent;
+
+                  // Posicionar imediatamente após o bloco de origem (ou após o parágrafo personalizado anterior)
+                  if (customAnchor.nextSibling !== existingCustom) {
+                    if (customAnchor.nextSibling) {
+                      dom.reportPaper.insertBefore(existingCustom, customAnchor.nextSibling);
+                    } else {
+                      dom.reportPaper.appendChild(existingCustom);
+                    }
+                  }
+                  customAnchor = existingCustom;
+                }
+              }
+            }
+          });
+
+          // 4. Atualizar o DOM existente com a nova estrutura canônica reconciliada
+          // (Sem elementos órfãos anexados internamente)
+          existingEl.innerHTML = temp.innerHTML;
+
+          // Atualizar classe CSS se necessário
+          if (existingEl.className !== b.className) existingEl.className = b.className;
+
+          // Atualizar o registro interno de slots gerados para refletir exatamente a nova estrutura
+          state.lastGeneratedSlots[b.id] = { ...newSlots };
+
+          // Limpar de userEditedSlots quaisquer chaves obsoletas que não existam mais no DOM do bloco
+          if (state.userEditedSlots[b.id]) {
+            const currentDomKeys = getDomSlotKeys(existingEl);
+            for (const editedKey of state.userEditedSlots[b.id]) {
+              if (!currentDomKeys.has(editedKey)) {
+                state.userEditedSlots[b.id].delete(editedKey);
+              }
+            }
+            if (state.userEditedSlots[b.id].size === 0) {
+              delete state.userEditedSlots[b.id];
+            }
+          }
+
+        } else {
+          // ── Bloco sem slots (títulos, quebras): controle por bloco inteiro ──
+          const isEdited = state.manualEditBlocks.has(b.id) ||
+                           existingEl.getAttribute('data-manual-edit') === 'true' ||
+                           (state.lastGeneratedBlocks[b.id] !== undefined &&
+                            normalizeContent(existingEl.innerHTML) !== normalizeContent(state.lastGeneratedBlocks[b.id]));
+
+          if (isEdited) {
+            state.manualEditBlocks.add(b.id);
+            existingEl.setAttribute('data-manual-edit', 'true');
+          } else {
+            if (existingEl.innerHTML !== b.html) existingEl.innerHTML = b.html;
+            if (existingEl.className !== b.className)  existingEl.className  = b.className;
+          }
+        }
+
+        state.lastGeneratedBlocks[b.id] = b.html;
+
+        // Determinar o último elemento deste bloco (incluindo seus parágrafos personalizados vinculados)
+        let anchor = customAnchor;
+        while (
+          anchor.nextElementSibling &&
+          (anchor.nextElementSibling.getAttribute('data-custom') === 'true' ||
+           anchor.nextElementSibling.hasAttribute('data-custom-origin') ||
+           !anchor.nextElementSibling.hasAttribute('data-block') ||
+           !currentBlockIds.has(anchor.nextElementSibling.getAttribute('data-block')))
+        ) {
+          const nextOrigin = anchor.nextElementSibling.getAttribute('data-custom-origin');
+          if (nextOrigin && !nextOrigin.startsWith(`${b.id}_`)) {
+            const belongsToActiveBlock = Array.from(currentBlockIds).some(id => nextOrigin.startsWith(`${id}_`));
+            if (belongsToActiveBlock) {
+              break;
+            }
+          }
+          anchor = anchor.nextElementSibling;
+        }
+        lastDomEl = anchor;
+
+      } else {
+        // ── Bloco ainda não existe no DOM: inserir ────────────────────────────
+        if (state.isManualEdit && state.deletedBlocks && state.deletedBlocks.has(b.id)) return;
+
+        const newEl = document.createElement('p');
+        if (b.className) newEl.className = b.className;
+        newEl.setAttribute('data-block', b.id);
+        newEl.innerHTML = b.html;
+
+        if (lastDomEl && lastDomEl.nextSibling) {
+          dom.reportPaper.insertBefore(newEl, lastDomEl.nextSibling);
+        } else if (lastDomEl) {
+          dom.reportPaper.appendChild(newEl);
+        } else {
+          dom.reportPaper.insertBefore(newEl, dom.reportPaper.firstChild);
+        }
+
+        state.lastGeneratedBlocks[b.id] = b.html;
+        const slots = extractSlots(b.html);
+        if (Object.keys(slots).length) state.lastGeneratedSlots[b.id] = slots;
+        lastDomEl = newEl;
+      }
+    });
+
+    // ── Remover blocos obsoletos ──────────────────────────────────────────────
+    Array.from(dom.reportPaper.querySelectorAll(':scope > [data-block]')).forEach(el => {
+      const blockId = el.getAttribute('data-block');
+      if (!currentBlockIds.has(blockId)) {
+        const hasUserSlots = state.userEditedSlots[blockId] && state.userEditedSlots[blockId].size > 0;
+        const isUserBlock  = state.manualEditBlocks.has(blockId) ||
+                             el.getAttribute('data-manual-edit') === 'true' ||
+                             hasUserSlots;
+        if (!isUserBlock) {
+          el.remove();
+          delete state.lastGeneratedBlocks[blockId];
+          delete state.lastGeneratedSlots[blockId];
+          delete state.userEditedSlots[blockId];
+        }
+      }
+    });
+
+    updateManualEditStatus();
+  }
+
   function renderReportText() {
     if (!dom.reportPaper) return;
 
-    const p = [];
+    const blocks = [];
+    const add = (id, html, className = '') => {
+      blocks.push({ id, html, className });
+    };
 
     // 1. TÍTULO PRINCIPAL (CENTRALIZADO, EM NEGRITO)
-    p.push(`<p class="report-title"><b>ULTRASSONOGRAFIA OBSTÉTRICA DE 1º TRIMESTRE</b></p>`);
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
+    add('title', '<b>ULTRASSONOGRAFIA OBSTÉTRICA DE 1º TRIMESTRE</b>', 'report-title');
+    add('sp_title', '&nbsp;', 'report-blank-line');
 
     // 2. CRONOLOGIA GESTACIONAL
     if (state.cronologia.dumStatus === 'sim') {
       const dumText = state.cronologia.dum ? state.cronologia.dum : 'x';
-      p.push(`<p>Data da última menstruação: ${dumText}.</p>`);
+      add('cron_dum', `<span data-static-slot="dum_lbl">Data da última menstruação: </span><span data-slot="dum_data">${dumText}</span><span data-static-slot="dum_pt">.</span>`);
 
       if (state.cronologia.dumCalculada.valid) {
-        p.push(`<p>Exame ultrassonográfico realizado com ${state.cronologia.dumCalculada.semanas} semanas e ${state.cronologia.dumCalculada.dias} dias de idade gestacional segundo a data da última menstruação.</p>`);
+        add('cron_dum_ig', `<span data-static-slot="s_pre">Exame ultrassonográfico realizado com </span><span data-slot="dum_sem">${state.cronologia.dumCalculada.semanas}</span><span data-static-slot="s_mid"> semanas e </span><span data-slot="dum_dias">${state.cronologia.dumCalculada.dias}</span><span data-static-slot="s_pos"> dias de idade gestacional segundo a data da última menstruação.</span>`);
       } else {
-        p.push(`<p>Exame ultrassonográfico realizado com x semanas e x dias de idade gestacional segundo a data da última menstruação.</p>`);
+        add('cron_dum_ig', '<span data-static-slot="s_pre">Exame ultrassonográfico realizado com </span><span data-slot="dum_sem">x</span><span data-static-slot="s_mid"> semanas e </span><span data-slot="dum_dias">x</span><span data-static-slot="s_pos"> dias de idade gestacional segundo a data da última menstruação.</span>');
       }
     } else if (state.cronologia.dumStatus === 'incerta') {
-      p.push(`<p>Data da última menstruação: incerta.</p>`);
+      add('cron_dum', '<span data-static-slot="dum_lbl">Data da última menstruação: </span><span data-static-slot="dum_val">incerta.</span>');
     }
 
     // Técnica
@@ -506,81 +860,81 @@
       : state.cronologia.viaExame === 'combinada'
         ? 'vias combinadas (transabdominal e transvaginal)'
         : 'transvaginal';
-    p.push(`<p>Exame realizado pela via ${viaTexto}.</p>`);
+    add('cron_via', `<span data-static-slot="via_pre">Exame realizado pela via </span><span data-slot="via_texto">${viaTexto}</span><span data-static-slot="via_pos">.</span>`);
 
     const bexigaTexto = state.cronologia.bexiga === 'repleta'
       ? 'Bexiga repleta.'
       : state.cronologia.bexiga === 'parcial'
         ? 'Bexiga com repleção parcial.'
         : 'Bexiga vazia.';
-    p.push(`<p>${bexigaTexto}</p>`);
+    add('cron_bexiga', `<span data-static-slot="bexiga_txt">${bexigaTexto}</span>`);
 
     // 3. ÚTERO
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
-    p.push(`<p class="report-section-title"><b>ÚTERO</b></p>`);
-    p.push(`<p>Útero centralizado, ${state.utero.posicao}. A forma é globosa e de volume aumentado, compatível com o período gestacional.</p>`);
+    add('sp_utero', '&nbsp;', 'report-blank-line');
+    add('utero_title', '<b>ÚTERO</b>', 'report-section-title');
+    add('utero_pos', `<span data-static-slot="ut_pre">Útero centralizado, </span><span data-slot="utero_pos">${state.utero.posicao}</span><span data-static-slot="ut_pos">. A forma é globosa e de volume aumentado, compatível com o período gestacional.</span>`);
 
     const utD1 = state.utero.d1 ? formatNumBR(state.utero.d1) : 'a';
     const utD2 = state.utero.d2 ? formatNumBR(state.utero.d2) : 'b';
     const utD3 = state.utero.d3 ? formatNumBR(state.utero.d3) : 'c';
     const utVol = state.utero.volume ? formatNumBR(state.utero.volume) : 'x';
-    p.push(`<p>O útero mede ${utD1} x ${utD2} x ${utD3} cm (volume = ${utVol} cm³).</p>`);
+    add('utero_med', `<span data-static-slot="ut_m1">O útero mede </span><span data-slot="ut_d1">${utD1}</span><span data-static-slot="ut_m2"> x </span><span data-slot="ut_d2">${utD2}</span><span data-static-slot="ut_m3"> x </span><span data-slot="ut_d3">${utD3}</span><span data-static-slot="ut_m4"> cm (volume = </span><span data-slot="ut_vol">${utVol}</span><span data-static-slot="ut_m5"> cm³).</span>`);
 
     // 4. SACO GESTACIONAL (Cálculo ou inserção direta do Diâmetro Médio)
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
+    add('sp_sg', '&nbsp;', 'report-blank-line');
     const sgMedioVal = state.sacoGestacional.medio ? formatNumBR(state.sacoGestacional.medio) : 'x';
-    p.push(`<p>Detecta-se presença de saco gestacional tópico, em região fúndica, de limites regulares no seu interior, cujo diâmetro médio foi ${sgMedioVal} mm.</p>`);
+    add('sg_desc', `<span data-static-slot="sg_pre">Detecta-se presença de saco gestacional tópico, em região fúndica, de limites regulares no seu interior, cujo diâmetro médio foi </span><span data-slot="sg_medio">${sgMedioVal}</span><span data-static-slot="sg_pos"> mm.</span>`);
 
     // 5. HEMATOMA SUBCORIÔNICO (SE PRESENTE, LOGO APÓS SACO GESTACIONAL)
     if (state.hematoma.presente) {
-      p.push(`<p class="report-blank-line">&nbsp;</p>`);
+      add('sp_hematoma', '&nbsp;', 'report-blank-line');
       const h1 = state.hematoma.d1 ? formatNumBR(state.hematoma.d1) : 'a';
       const h2 = state.hematoma.d2 ? formatNumBR(state.hematoma.d2) : 'b';
       const h3 = state.hematoma.d3 ? formatNumBR(state.hematoma.d3) : 'c';
-      p.push(`<p>Nota-se área hipoecogênica adjacente ao saco gestacional medindo ${h1} x ${h2} x ${h3} mm, sugestiva de hematoma subcoriônico.</p>`);
+      add('hematoma_desc', `<span data-static-slot="h_pre">Nota-se área hipoecogênica adjacente ao saco gestacional medindo </span><span data-slot="h1">${h1}</span><span data-static-slot="h_mid1"> x </span><span data-slot="h2">${h2}</span><span data-static-slot="h_mid2"> x </span><span data-slot="h3">${h3}</span><span data-static-slot="h_pos"> mm, sugestiva de hematoma subcoriônico.</span>`);
     }
 
     // 6. VESÍCULA VITELÍNICA E EMBRIÃO
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
+    add('sp_embriao', '&nbsp;', 'report-blank-line');
     if (state.embriao.identificado) {
       // EMBRIÃO IDENTIFICADO (Modelo Padrão)
-      p.push(`<p class="report-section-title"><b>EMBRIÃO</b></p>`);
+      add('embriao_title', '<b>EMBRIÃO</b>', 'report-section-title');
       const ccnVal = state.embriao.ccn ? formatNumBR(state.embriao.ccn) : 'x';
-      p.push(`<p>Individualizado com CCN de ${ccnVal} mm.</p>`);
+      add('embriao_ccn', `<span data-static-slot="ccn_pre">Individualizado com CCN de </span><span data-slot="ccn">${ccnVal}</span><span data-static-slot="ccn_pos"> mm.</span>`);
 
       // Batimentos cardíacos
       if (state.embriao.bcfStatus === 'presentes') {
         const bcfVal = state.embriao.bcf ? state.embriao.bcf : 'x';
-        p.push(`<p>Batimentos cardíacos presentes (${bcfVal} bpm)</p>`);
+        add('embriao_bcf', `<span data-static-slot="bcf_pre">Batimentos cardíacos presentes (</span><span data-slot="bcf">${bcfVal}</span><span data-static-slot="bcf_pos"> bpm)</span>`);
       } else {
-        p.push(`<p>Batimentos cardíacos embrionários não identificados.</p>`);
+        add('embriao_bcf', '<span data-static-slot="bcf_txt">Batimentos cardíacos embrionários não identificados.</span>');
       }
 
       // Vesícula Vitelínica
       if (state.vesicula.status === 'identificada') {
         const vvVal = state.vesicula.medidaMm ? formatNumBR(state.vesicula.medidaMm) : 'x';
-        p.push(`<p>Vesícula vitelínica com aspecto regular, medindo ${vvVal} mm.</p>`);
+        add('vesicula_desc', `<span data-static-slot="vv_pre">Vesícula vitelínica com aspecto regular, medindo </span><span data-slot="vv_medida">${vvVal}</span><span data-static-slot="vv_pos"> mm.</span>`);
       } else {
-        p.push(`<p>Vesícula vitelínica não identificada.</p>`);
+        add('vesicula_desc', '<span data-static-slot="vv_txt">Vesícula vitelínica não identificada.</span>');
       }
     } else {
       // EMBRIÃO NÃO IDENTIFICADO (Referência: obstetrico inicial com embriao nao identificado.docx)
       // Conforme o modelo da clínica, o título "EMBRIÃO" é suprimido
       if (state.vesicula.status === 'identificada') {
         const vvVal = state.vesicula.medidaMm ? formatNumBR(state.vesicula.medidaMm) : 'x';
-        p.push(`<p>Vesícula vitelínica com aspecto regular, medindo ${vvVal} mm.</p>`);
+        add('vesicula_desc', `<span data-static-slot="vv_pre">Vesícula vitelínica com aspecto regular, medindo </span><span data-slot="vv_medida">${vvVal}</span><span data-static-slot="vv_pos"> mm.</span>`);
       } else {
-        p.push(`<p>Vesícula vitelínica não identificada.</p>`);
+        add('vesicula_desc', '<span data-static-slot="vv_txt">Vesícula vitelínica não identificada.</span>');
       }
-      p.push(`<p>Embrião não identificado.</p>`);
+      add('embriao_nao_id', '<span data-static-slot="emb_nao_id_txt">Embrião não identificado.</span>');
     }
 
     // 7. OVÁRIOS
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
-    p.push(`<p class="report-section-title"><b>OVÁRIOS</b></p>`);
+    add('sp_ovarios', '&nbsp;', 'report-blank-line');
+    add('ovarios_title', '<b>OVÁRIOS</b>', 'report-section-title');
 
     // Ovário Direito — sem linha em branco entre título OVÁRIOS e subtítulo
-    p.push(`<p class="report-subhead report-subhead-first"><b>Ovário Direito</b></p>`);
+    add('od_subhead', '<b>Ovário Direito</b>', 'report-subhead report-subhead-first');
     if (state.ovarioDireito.estado === 'caracterizado') {
       const hasD1 = Boolean(state.ovarioDireito.d1);
       const hasD2 = Boolean(state.ovarioDireito.d2);
@@ -589,13 +943,13 @@
 
       let medDesc = '';
       if (allEmpty) {
-        medDesc = 'Identificado em projeção parauterina, de dimensões normais.';
+        medDesc = '<span data-static-slot="o_normais_txt">Identificado em projeção parauterina, de dimensões normais.</span>';
       } else {
         const d1 = hasD1 ? formatNumBR(state.ovarioDireito.d1) : 'a';
         const d2 = hasD2 ? formatNumBR(state.ovarioDireito.d2) : 'b';
         const d3 = hasD3 ? formatNumBR(state.ovarioDireito.d3) : 'c';
         const vol = state.ovarioDireito.volume ? formatNumBR(state.ovarioDireito.volume) : 'x';
-        medDesc = `Identificado em projeção parauterina, medindo ${d1} x ${d2} x ${d3} cm (volume: ${vol} cm³).`;
+        medDesc = `<span data-static-slot="o_m1">Identificado em projeção parauterina, medindo </span><span data-slot="od_d1">${d1}</span><span data-static-slot="o_m2"> x </span><span data-slot="od_d2">${d2}</span><span data-static-slot="o_m3"> x </span><span data-slot="od_d3">${d3}</span><span data-static-slot="o_m4"> cm (volume: </span><span data-slot="od_vol">${vol}</span><span data-static-slot="o_m5"> cm³).</span>`;
       }
 
       // Achados variáveis (se habilitados)
@@ -603,28 +957,28 @@
       if (state.ovarioDireito.temAchados) {
         const odAch = state.ovarioDireito.achados;
         if (odAch.corpoLuteo.ativo) {
-          achadosTxt.push('Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.');
+          achadosTxt.push({ key: 'corpo_luteo', text: 'Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.' });
         }
         if (odAch.cistosFuncionais.ativo) {
-          achadosTxt.push('Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.');
+          achadosTxt.push({ key: 'cistos_funcionais', text: 'Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.' });
         }
         if (odAch.foliculo.ativo) {
-          achadosTxt.push('Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.');
+          achadosTxt.push({ key: 'foliculo', text: 'Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.' });
         }
         if (odAch.outro.ativo && odAch.outro.texto) {
-          achadosTxt.push(odAch.outro.texto);
+          achadosTxt.push({ key: 'outro', text: odAch.outro.texto });
         }
       }
 
       if (allEmpty) {
-        p.push('<p>Identificado em projeção parauterina, de dimensões normais. Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</p>');
+        add('od_desc_normais', '<span data-static-slot="o_normais_txt">Identificado em projeção parauterina, de dimensões normais. Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</span>');
       } else {
-        p.push(`<p>${medDesc}</p>`);
-        p.push('<p>Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</p>');
+        add('od_desc_med', medDesc);
+        add('od_desc_ecotextura', '<span data-static-slot="o_ecotextura_txt">Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</span>');
       }
 
       if (achadosTxt.length > 0) {
-        achadosTxt.forEach(txt => p.push(`<p>${txt}</p>`));
+        achadosTxt.forEach(ach => add(`od_achado_${ach.key}`, `<span data-static-slot="text">${ach.text}</span>`));
       }
     } else {
       // Não caracterizado
@@ -638,30 +992,30 @@
       } else {
         justText = '.';
       }
-      p.push(`<p>Não caracterizado no presente estudo${justText}</p>`);
+      add('od_desc_nao_caracterizado', `<span data-static-slot="o_nao_caract_txt">Não caracterizado no presente estudo${justText}</span>`);
       if (state.ovarioDireito.anexoHabitual) {
-        p.push('<p>A região anexial direita apresenta aspecto habitual.</p>');
+        add('od_anexo', '<span data-static-slot="o_anexo_txt">A região anexial direita apresenta aspecto habitual.</span>');
       }
       if (state.ovarioDireito.temAchados) {
         const odAch = state.ovarioDireito.achados;
         if (odAch.corpoLuteo.ativo) {
-          p.push('<p>Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.</p>');
+          add('od_achado_corpo_luteo', '<span data-static-slot="text">Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.</span>');
         }
         if (odAch.cistosFuncionais.ativo) {
-          p.push('<p>Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.</p>');
+          add('od_achado_cistos_funcionais', '<span data-static-slot="text">Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.</span>');
         }
         if (odAch.foliculo.ativo) {
-          p.push('<p>Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.</p>');
+          add('od_achado_foliculo', '<span data-static-slot="text">Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.</span>');
         }
         if (odAch.outro.ativo && odAch.outro.texto) {
-          p.push(`<p>${odAch.outro.texto}</p>`);
+          add('od_achado_outro', `<span data-static-slot="text">${odAch.outro.texto}</span>`);
         }
       }
     }
 
     // Ovário Esquerdo
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
-    p.push(`<p class="report-subhead"><b>Ovário Esquerdo</b></p>`);
+    add('sp_oe', '&nbsp;', 'report-blank-line');
+    add('oe_subhead', '<b>Ovário Esquerdo</b>', 'report-subhead');
     if (state.ovarioEsquerdo.estado === 'caracterizado') {
       const hasD1 = Boolean(state.ovarioEsquerdo.d1);
       const hasD2 = Boolean(state.ovarioEsquerdo.d2);
@@ -670,13 +1024,13 @@
 
       let medDesc = '';
       if (allEmpty) {
-        medDesc = 'Identificado em projeção parauterina, de dimensões normais.';
+        medDesc = '<span data-static-slot="o_normais_txt">Identificado em projeção parauterina, de dimensões normais.</span>';
       } else {
         const d1 = hasD1 ? formatNumBR(state.ovarioEsquerdo.d1) : 'a';
         const d2 = hasD2 ? formatNumBR(state.ovarioEsquerdo.d2) : 'b';
         const d3 = hasD3 ? formatNumBR(state.ovarioEsquerdo.d3) : 'c';
         const vol = state.ovarioEsquerdo.volume ? formatNumBR(state.ovarioEsquerdo.volume) : 'x';
-        medDesc = `Identificado em projeção parauterina, medindo ${d1} x ${d2} x ${d3} cm (volume: ${vol} cm³).`;
+        medDesc = `<span data-static-slot="o_m1">Identificado em projeção parauterina, medindo </span><span data-slot="oe_d1">${d1}</span><span data-static-slot="o_m2"> x </span><span data-slot="oe_d2">${d2}</span><span data-static-slot="o_m3"> x </span><span data-slot="oe_d3">${d3}</span><span data-static-slot="o_m4"> cm (volume: </span><span data-slot="oe_vol">${vol}</span><span data-static-slot="o_m5"> cm³).</span>`;
       }
 
       // Achados variáveis (se habilitados)
@@ -684,28 +1038,28 @@
       if (state.ovarioEsquerdo.temAchados) {
         const oeAch = state.ovarioEsquerdo.achados;
         if (oeAch.corpoLuteo.ativo) {
-          achadosTxt.push('Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.');
+          achadosTxt.push({ key: 'corpo_luteo', text: 'Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.' });
         }
         if (oeAch.cistosFuncionais.ativo) {
-          achadosTxt.push('Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.');
+          achadosTxt.push({ key: 'cistos_funcionais', text: 'Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.' });
         }
         if (oeAch.foliculo.ativo) {
-          achadosTxt.push('Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.');
+          achadosTxt.push({ key: 'foliculo', text: 'Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.' });
         }
         if (oeAch.outro.ativo && oeAch.outro.texto) {
-          achadosTxt.push(oeAch.outro.texto);
+          achadosTxt.push({ key: 'outro', text: oeAch.outro.texto });
         }
       }
 
       if (allEmpty) {
-        p.push('<p>Identificado em projeção parauterina, de dimensões normais. Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</p>');
+        add('oe_desc_normais', '<span data-static-slot="o_normais_txt">Identificado em projeção parauterina, de dimensões normais. Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</span>');
       } else {
-        p.push(`<p>${medDesc}</p>`);
-        p.push('<p>Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</p>');
+        add('oe_desc_med', medDesc);
+        add('oe_desc_ecotextura', '<span data-static-slot="o_ecotextura_txt">Ecotextura ovariana característica. Seu contorno e sua forma são habituais.</span>');
       }
 
       if (achadosTxt.length > 0) {
-        achadosTxt.forEach(txt => p.push(`<p>${txt}</p>`));
+        achadosTxt.forEach(ach => add(`oe_achado_${ach.key}`, `<span data-static-slot="text">${ach.text}</span>`));
       }
     } else {
       // Não caracterizado
@@ -719,51 +1073,47 @@
       } else {
         justText = '.';
       }
-      p.push(`<p>Não caracterizado no presente estudo${justText}</p>`);
+      add('oe_desc_nao_caracterizado', `<span data-static-slot="o_nao_caract_txt">Não caracterizado no presente estudo${justText}</span>`);
       if (state.ovarioEsquerdo.anexoHabitual) {
-        p.push('<p>A região anexial esquerda apresenta aspecto habitual.</p>');
+        add('oe_anexo', '<span data-static-slot="o_anexo_txt">A região anexial esquerda apresenta aspecto habitual.</span>');
       }
       if (state.ovarioEsquerdo.temAchados) {
         const oeAch = state.ovarioEsquerdo.achados;
         if (oeAch.corpoLuteo.ativo) {
-          p.push('<p>Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.</p>');
+          add('oe_achado_corpo_luteo', '<span data-static-slot="text">Formação cística com paredes espessadas e halo vascularizado sugestiva de corpo lúteo.</span>');
         }
         if (oeAch.cistosFuncionais.ativo) {
-          p.push('<p>Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.</p>');
+          add('oe_achado_cistos_funcionais', '<span data-static-slot="text">Formações císticas anecóides, de paredes finas e lisas, sugerindo cistos funcionais.</span>');
         }
         if (oeAch.foliculo.ativo) {
-          p.push('<p>Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.</p>');
+          add('oe_achado_foliculo', '<span data-static-slot="text">Formação cística anecóide, de paredes finas e lisas, sugerindo folículo dominante.</span>');
         }
         if (oeAch.outro.ativo && oeAch.outro.texto) {
-          p.push(`<p>${oeAch.outro.texto}</p>`);
+          add('oe_achado_outro', `<span data-static-slot="text">${oeAch.outro.texto}</span>`);
         }
       }
     }
 
     // 8. FUNDO DE SACO DE DOUGLAS (Opções ampliadas de líquido livre)
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
+    add('sp_douglas', '&nbsp;', 'report-blank-line');
+    let douglasTxt = 'Fundo de Saco de Douglas livre.';
     if (state.fundoDouglas === 'pequena') {
-      p.push(`<p>Pequena quantidade de líquido em fundo de saco de Douglas.</p>`);
+      douglasTxt = 'Pequena quantidade de líquido em fundo de saco de Douglas.';
     } else if (state.fundoDouglas === 'moderada') {
-      p.push(`<p>Moderada quantidade de líquido em fundo de saco de Douglas.</p>`);
+      douglasTxt = 'Moderada quantidade de líquido em fundo de saco de Douglas.';
     } else if (state.fundoDouglas === 'acentuada') {
-      p.push(`<p>Acentuada quantidade de líquido em fundo de saco de Douglas.</p>`);
-    } else {
-      p.push(`<p>Fundo de Saco de Douglas livre.</p>`);
+      douglasTxt = 'Acentuada quantidade de líquido em fundo de saco de Douglas.';
     }
+    add('douglas_desc', `<span data-static-slot="douglas_txt">${douglasTxt}</span>`);
 
     // 9. CONCLUSÃO DINÂMICA
-    p.push(`<p class="report-blank-line">&nbsp;</p>`);
-    p.push(`<p class="report-section-title"><b>CONCLUSÃO</b></p>`);
+    add('sp_conclusao', '&nbsp;', 'report-blank-line');
+    add('conclusao_title', '<b>CONCLUSÃO</b>', 'report-section-title');
 
     // Flag para posicionar a frase de controle ultrassonográfico estritamente no final da conclusão
     let precisaControle = false;
 
     if (state.embriao.identificado) {
-      // -----------------------------------------------------------------------
-      // IDADE GESTACIONAL NA CONCLUSÃO: SOMENTE com CCN válido!
-      // Inicia vazia (sem valores de exemplo, sem estimativa fictícia, sem DUM).
-      // -----------------------------------------------------------------------
       const temCcn = state.embriao.igCcn.valid;
       const temDum = state.cronologia.dumCalculada.valid;
 
@@ -771,10 +1121,6 @@
         ? `, compatível com ${state.embriao.igCcn.semanas} semanas e ${state.embriao.igCcn.dias} dias (±5 dias)`
         : '';
 
-      // -----------------------------------------------------------------------
-      // DPP: lógica independente — regra dos 5 dias (DUM vs CCN)
-      // Não apresentar DPP com dados zerados/incompletos.
-      // -----------------------------------------------------------------------
       let dppText   = '';
       let dppOrigem = '';
 
@@ -797,37 +1143,35 @@
 
       if (state.embriao.bcfStatus === 'presentes') {
         // EMBRIÃO VIVO (Modelo Padrão)
-        p.push(`<p>- Gestação tópica, com embrião único, vivo${igSufixo}.</p>`);
+        add('conclusao_embriao', `<span data-static-slot="emb_pre">- Gestação tópica, com embrião único, vivo</span><span data-slot="ig_sufixo">${igSufixo}</span><span data-static-slot="emb_pos">.</span>`);
         if (dppText) {
-          p.push(`<p>- Data provável do parto (DPP): ${dppText}${dppOrigem}.</p>`);
+          add('conclusao_dpp', `<span data-static-slot="dpp_pre">- Data provável do parto (DPP): </span><span data-slot="dpp_text">${dppText}</span><span data-slot="dpp_origem">${dppOrigem}</span><span data-static-slot="dpp_pos">.</span>`);
         }
       } else {
-        // EMBRIÃO SEM BATIMENTOS (Referência: obstetrico inicial com embriao sem batimentos.docx)
-        // 1. Descrição dos batimentos não identificados
-        p.push(`<p>- Gestação tópica, com embrião único${igSufixo}.</p>`);
-        p.push(`<p>- Batimentos cardíacos embrionários não identificados.</p>`);
+        // EMBRIÃO SEM BATIMENTOS
+        add('conclusao_embriao', `<span data-static-slot="emb_pre">- Gestação tópica, com embrião único</span><span data-slot="ig_sufixo">${igSufixo}</span><span data-static-slot="emb_pos">.</span>`);
+        add('conclusao_sem_bcf', '<span data-static-slot="sem_bcf_txt">- Batimentos cardíacos embrionários não identificados.</span>');
         precisaControle = true;
       }
 
-      // 2. Conclusão Hematoma (se presente, vem antes da frase de controle!)
       if (state.hematoma.presente) {
         const h1 = state.hematoma.d1 ? formatNumBR(state.hematoma.d1) : 'a';
         const h2 = state.hematoma.d2 ? formatNumBR(state.hematoma.d2) : 'b';
         const h3 = state.hematoma.d3 ? formatNumBR(state.hematoma.d3) : 'c';
-        p.push(`<p>- Nota-se área hipoecogênica adjacente ao saco gestacional medindo ${h1} x ${h2} x ${h3} mm, sugestiva de hematoma subcoriônico.</p>`);
+        add('conclusao_hematoma', `<span data-static-slot="h_pre">- Nota-se área hipoecogênica adjacente ao saco gestacional medindo </span><span data-slot="h1">${h1}</span><span data-static-slot="h_mid1"> x </span><span data-slot="h2">${h2}</span><span data-static-slot="h_mid2"> x </span><span data-slot="h3">${h3}</span><span data-static-slot="h_pos"> mm, sugestiva de hematoma subcoriônico.</span>`);
       }
 
     } else {
-      // EMBRIÃO NÃO IDENTIFICADO (Referência: obstetrico inicial com embriao nao identificado.docx)
-      p.push(`<p>- Gestação tópica inicial.</p>`);
-      p.push(`<p>- Embrião não identificado.</p>`);
+      // EMBRIÃO NÃO IDENTIFICADO
+      add('conclusao_gestacao_inicial', '<span data-static-slot="gest_ini_txt">- Gestação tópica inicial.</span>');
+      add('conclusao_embriao_nao_id', '<span data-static-slot="emb_nao_id_txt">- Embrião não identificado.</span>');
       precisaControle = true;
 
       if (state.hematoma.presente) {
         const h1 = state.hematoma.d1 ? formatNumBR(state.hematoma.d1) : 'a';
         const h2 = state.hematoma.d2 ? formatNumBR(state.hematoma.d2) : 'b';
         const h3 = state.hematoma.d3 ? formatNumBR(state.hematoma.d3) : 'c';
-        p.push(`<p>- Nota-se área hipoecogênica adjacente ao saco gestacional medindo ${h1} x ${h2} x ${h3} mm, sugestiva de hematoma subcoriônico.</p>`);
+        add('conclusao_hematoma', `<span data-static-slot="h_pre">- Nota-se área hipoecogênica adjacente ao saco gestacional medindo </span><span data-slot="h1">${h1}</span><span data-static-slot="h_mid1"> x </span><span data-slot="h2">${h2}</span><span data-static-slot="h_mid2"> x </span><span data-slot="h3">${h3}</span><span data-static-slot="h_pos"> mm, sugestiva de hematoma subcoriônico.</span>`);
       }
     }
 
@@ -836,16 +1180,16 @@
     if (state.ovarioDireito.temAchados) {
       const odAch = state.ovarioDireito.achados;
       if (odAch.corpoLuteo.ativo && odAch.corpoLuteo.conclusao) {
-        p.push('<p>- Corpo lúteo no ovário direito.</p>');
+        add('conclusao_od_corpo_luteo', '<span data-static-slot="text">- Corpo lúteo no ovário direito.</span>');
       }
       if (odAch.cistosFuncionais.ativo && odAch.cistosFuncionais.conclusao) {
-        p.push('<p>- Cistos funcionais no ovário direito.</p>');
+        add('conclusao_od_cistos_funcionais', '<span data-static-slot="text">- Cistos funcionais no ovário direito.</span>');
       }
       if (odAch.foliculo.ativo && odAch.foliculo.conclusao) {
-        p.push('<p>- Folículo dominante no ovário direito.</p>');
+        add('conclusao_od_foliculo', '<span data-static-slot="text">- Folículo dominante no ovário direito.</span>');
       }
       if (odAch.outro.ativo && odAch.outro.conclusao && odAch.outro.texto) {
-        p.push(`<p>- Achado no ovário direito: ${odAch.outro.texto}.</p>`);
+        add('conclusao_od_outro', `<span data-static-slot="s_pre">- Achado no ovário direito: </span><span data-slot="od_outro">${odAch.outro.texto}</span><span data-static-slot="s_pos">.</span>`);
       }
     }
 
@@ -853,35 +1197,34 @@
     if (state.ovarioEsquerdo.temAchados) {
       const oeAch = state.ovarioEsquerdo.achados;
       if (oeAch.corpoLuteo.ativo && oeAch.corpoLuteo.conclusao) {
-        p.push('<p>- Corpo lúteo no ovário esquerdo.</p>');
+        add('conclusao_oe_corpo_luteo', '<span data-static-slot="text">- Corpo lúteo no ovário esquerdo.</span>');
       }
       if (oeAch.cistosFuncionais.ativo && oeAch.cistosFuncionais.conclusao) {
-        p.push('<p>- Cistos funcionais no ovário esquerdo.</p>');
+        add('conclusao_oe_cistos_funcionais', '<span data-static-slot="text">- Cistos funcionais no ovário esquerdo.</span>');
       }
       if (oeAch.foliculo.ativo && oeAch.foliculo.conclusao) {
-        p.push('<p>- Folículo dominante no ovário esquerdo.</p>');
+        add('conclusao_oe_foliculo', '<span data-static-slot="text">- Folículo dominante no ovário esquerdo.</span>');
       }
       if (oeAch.outro.ativo && oeAch.outro.conclusao && oeAch.outro.texto) {
-        p.push(`<p>- Achado no ovário esquerdo: ${oeAch.outro.texto}.</p>`);
+        add('conclusao_oe_outro', `<span data-static-slot="s_pre">- Achado no ovário esquerdo: </span><span data-slot="oe_outro">${oeAch.outro.texto}</span><span data-static-slot="s_pos">.</span>`);
       }
     }
 
     // 3. Frase de controle ultrassonográfico SEMPRE como o último texto da conclusão
     if (precisaControle) {
-      p.push(`<p class="report-blank-line">&nbsp;</p>`);
-      p.push(`<p>Sugiro, a critério médico, controle ultrassonográfico.</p>`);
+      add('sp_controle', '&nbsp;', 'report-blank-line');
+      add('conclusao_controle', '<span data-static-slot="controle_txt">Sugiro, a critério médico, controle ultrassonográfico.</span>');
     }
 
     // 10. OBSERVAÇÃO FINAL (QUANDO HEMATOMA PRESENTE E OPÇÃO MARCADA)
     if (state.hematoma.presente && state.hematoma.obsPaciente) {
-      p.push(`<p class="report-blank-line">&nbsp;</p>`);
-      p.push(`<p class="report-blank-line">&nbsp;</p>`);
-      p.push(`<p class="report-obs"><b>Observação:</b> paciente orientada quanto ao achado de hematoma subcoriônico, cuidados pertinentes, sinais de alarme e necessidade de avaliação pelo médico assistente ou atendimento médico em caso de intercorrências.</p>`);
+      add('sp_obs_1', '&nbsp;', 'report-blank-line');
+      add('sp_obs_2', '&nbsp;', 'report-blank-line');
+      add('obs_final', '<span data-static-slot="obs_final_txt"><b>Observação:</b> paciente orientada quanto ao achado de hematoma subcoriônico, cuidados pertinentes, sinais de alarme e necessidade de avaliação pelo médico assistente ou atendimento médico em caso de intercorrências.</span>', 'report-obs');
     }
 
-    dom.reportPaper.innerHTML = p.join('\n');
+    syncReportBlocks(blocks);
   }
-
   // =========================================================================
   // 6. CÓPIA RICA PARA CLIPBOARD (PRESERVA FORMATAÇÃO EXATA NO WORD)
   // =========================================================================
@@ -891,13 +1234,19 @@
 
     let richHtml = dom.reportPaper.innerHTML;
 
+    // Remover atributos data-block, data-slot, data-static-slot, data-manual-edit, data-custom (não devem ir para o Word)
+    richHtml = richHtml.replace(/\s*data-(slot|static-slot|block|manual-edit|custom|custom-origin)="[^"]*"/g, '');
+    while (/<span>([\s\S]*?)<\/span>/i.test(richHtml)) {
+      richHtml = richHtml.replace(/<span>([\s\S]*?)<\/span>/gi, '$1');
+    }
+
     // Regra específica Word: espaçamento posterior de "OVÁRIOS" = 0pt e anterior de "Ovário Direito" = 0pt
     richHtml = richHtml.replace(
-      /<p class="report-section-title"><b>OVÁRIOS<\/b><\/p>/gi,
+      /<p class="report-section-title"[^>]*><b>OVÁRIOS<\/b><\/p>/gi,
       '<p class="report-section-title" style="margin-top: 12pt; margin-bottom: 0pt; mso-para-margin-top: 12pt; mso-para-margin-bottom: 0pt;"><b>OVÁRIOS</b></p>'
     );
     richHtml = richHtml.replace(
-      /<p class="report-subhead report-subhead-first"><b>Ovário Direito<\/b><\/p>/gi,
+      /<p class="report-subhead report-subhead-first"[^>]*><b>Ovário Direito<\/b><\/p>/gi,
       '<p class="report-subhead report-subhead-first" style="margin-top: 0pt; margin-bottom: 0pt; mso-para-margin-top: 0pt; mso-para-margin-bottom: 0pt;"><b>Ovário Direito</b></p>'
     );
 
@@ -1024,8 +1373,17 @@ ${richHtml}
 
   function resetToDefault() {
     state.isManualEdit = false;
-    if (dom.manualEditBadge) dom.manualEditBadge.classList.remove('active');
+    state.manualEditBlocks.clear();
+    state.deletedBlocks.clear();
+    state.lastGeneratedBlocks = {};
+    state.userEditedSlots     = {};
+    state.lastGeneratedSlots  = {};
+    if (dom.manualEditBadge) {
+      dom.manualEditBadge.classList.remove('active');
+      dom.manualEditBadge.style.display = 'none';
+    }
     if (dom.btnRestaurarLaudo) dom.btnRestaurarLaudo.style.display = 'none';
+    if (dom.reportPaper) dom.reportPaper.innerHTML = '';
 
     // Todos os campos numéricos iniciam completamente vazios (sem dados fictícios)
     state.cronologia.dumStatus = 'sim';
@@ -1695,19 +2053,124 @@ ${richHtml}
     }
 
     // Edição manual direta na folha de laudo
-    if (dom.reportPaper) {
-      dom.reportPaper.addEventListener('input', () => {
-        state.isManualEdit = true;
-        if (dom.manualEditBadge) dom.manualEditBadge.classList.add('active');
-        if (dom.btnRestaurarLaudo) dom.btnRestaurarLaudo.style.display = 'inline-flex';
+    // Edição manual direta na folha de laudo
+    function handleReportPaperInput(e) {
+      if (!dom.reportPaper) return;
+
+      // 1. Identificar elemento / nó sob o cursor (caret), mesmo se e.target for #reportPaper
+      const activeEl = getActiveCaretElement(dom.reportPaper) ||
+                       (e && e.target && e.target !== dom.reportPaper && dom.reportPaper.contains(e.target) ? e.target : null);
+
+      if (activeEl && activeEl !== dom.reportPaper) {
+        const slotEl = activeEl.closest ? activeEl.closest('[data-slot], [data-static-slot]') : null;
+        const blockEl = activeEl.closest ? activeEl.closest('[data-block]') : null;
+
+        if (slotEl && blockEl && dom.reportPaper.contains(blockEl)) {
+          const blockId = blockEl.getAttribute('data-block');
+          const slotKey = getSlotKeyFromElement(slotEl);
+          if (blockId && slotKey) {
+            if (!state.userEditedSlots[blockId]) state.userEditedSlots[blockId] = new Set();
+            state.userEditedSlots[blockId].add(slotKey);
+          }
+        } else if (blockEl && dom.reportPaper.contains(blockEl)) {
+          const blockId = blockEl.getAttribute('data-block');
+          const genSlots = state.lastGeneratedSlots[blockId];
+          const hasKnownSlots = genSlots && Object.keys(genSlots).length > 0;
+          // Se o bloco NÃO possui slots (título, frase puramente fixa), registrar em manualEditBlocks
+          if (!hasKnownSlots && blockId) {
+            state.manualEditBlocks.add(blockId);
+            blockEl.setAttribute('data-manual-edit', 'true');
+          }
+        } else {
+          // Elemento solto / parágrafo customizado
+          activeEl.setAttribute('data-custom', 'true');
+        }
+      }
+
+      // 2. SCANNING INTEGRAL DOS SLOTS:
+      // Compara o conteúdo real de todos os slots no DOM com o valor gerado.
+      // Garante detecção perfeita mesmo em seleções amplas, Backspace, Delete, Cut ou Paste.
+      const domBlocks = dom.reportPaper.querySelectorAll(':scope > [data-block]');
+      const existingBlockIds = new Set();
+
+      domBlocks.forEach(blockEl => {
+        const blockId = blockEl.getAttribute('data-block');
+        if (!blockId) return;
+        existingBlockIds.add(blockId);
+
+        const genSlots = state.lastGeneratedSlots[blockId];
+        if (genSlots && Object.keys(genSlots).length > 0) {
+          Object.keys(genSlots).forEach(slotKey => {
+            const expectedVal = genSlots[slotKey];
+            const slotEl = findSlotElement(blockEl, slotKey);
+            if (!slotEl) {
+              // Slot foi removido pelo usuário
+              if (!state.userEditedSlots[blockId]) state.userEditedSlots[blockId] = new Set();
+              state.userEditedSlots[blockId].add(slotKey);
+            } else if (normalizeContent(slotEl.innerHTML) !== normalizeContent(expectedVal)) {
+              // Valor do slot foi editado manualmente
+              if (!state.userEditedSlots[blockId]) state.userEditedSlots[blockId] = new Set();
+              state.userEditedSlots[blockId].add(slotKey);
+            }
+          });
+        } else {
+          // Bloco sem slots: se diferir do gerado, marcar como editado
+          if (state.lastGeneratedBlocks[blockId] !== undefined) {
+            if (normalizeContent(blockEl.innerHTML) !== normalizeContent(state.lastGeneratedBlocks[blockId])) {
+              state.manualEditBlocks.add(blockId);
+              blockEl.setAttribute('data-manual-edit', 'true');
+            }
+          }
+        }
       });
+
+      // 3. Tratar quebras de parágrafo (Enter): desduplica data-block clonado pelo navegador
+      const seen = new Set();
+      dom.reportPaper.querySelectorAll('[data-block]').forEach(el => {
+        const bid = el.getAttribute('data-block');
+        if (seen.has(bid)) {
+          el.removeAttribute('data-block');
+          el.setAttribute('data-custom', 'true');
+          el.querySelectorAll('[data-slot], [data-static-slot]').forEach(s => {
+            s.removeAttribute('data-slot');
+            s.removeAttribute('data-static-slot');
+          });
+        } else {
+          seen.add(bid);
+        }
+      });
+
+      // 4. Rastrear blocos excluídos
+      Object.keys(state.lastGeneratedBlocks).forEach(id => {
+        if (!existingBlockIds.has(id)) {
+          state.deletedBlocks.add(id);
+        }
+      });
+
+      // 5. Atualizar status e badge
+      updateManualEditStatus();
     }
 
+    // Edição manual direta na folha de laudo
+    if (dom.reportPaper) {
+      dom.reportPaper.addEventListener('input', handleReportPaperInput);
+      dom.reportPaper.addEventListener('paste', () => setTimeout(handleReportPaperInput, 10));
+      dom.reportPaper.addEventListener('cut', () => setTimeout(handleReportPaperInput, 10));
+    }
     if (dom.btnRestaurarLaudo) {
       dom.btnRestaurarLaudo.addEventListener('click', () => {
         state.isManualEdit = false;
-        if (dom.manualEditBadge) dom.manualEditBadge.classList.remove('active');
+        state.manualEditBlocks.clear();
+        state.deletedBlocks.clear();
+        state.lastGeneratedBlocks = {};
+        state.userEditedSlots     = {};
+        state.lastGeneratedSlots  = {};
+        if (dom.manualEditBadge) {
+          dom.manualEditBadge.classList.remove('active');
+          dom.manualEditBadge.style.display = 'none';
+        }
         if (dom.btnRestaurarLaudo) dom.btnRestaurarLaudo.style.display = 'none';
+        dom.reportPaper.innerHTML = '';
         renderReportText();
         showToast('Texto do laudo restaurado a partir do formulário!');
       });

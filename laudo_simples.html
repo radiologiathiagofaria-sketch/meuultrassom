@@ -117,7 +117,7 @@
                       <span class="input-unit">sem</span>
                     </div>
                     <div class="input-with-unit">
-                      <input type="number" id="inputPrimeiraUsgDias" class="form-control" placeholder="Dias" min="0" max="6" value="0">
+                      <input type="number" id="inputPrimeiraUsgDias" class="form-control" placeholder="0" min="0" max="6">
                       <span class="input-unit">dias</span>
                     </div>
                   </div>
@@ -140,7 +140,7 @@
                     <span class="input-unit">sem</span>
                   </div>
                   <div class="input-with-unit">
-                    <input type="number" id="inputIgReferidaDias" class="form-control" min="0" max="6" value="0">
+                    <input type="number" id="inputIgReferidaDias" class="form-control" min="0" max="6" placeholder="0">
                     <span class="input-unit">dias</span>
                   </div>
                 </div>
@@ -149,7 +149,7 @@
           </div>
 
           <!-- Destaque da Idade Gestacional de Referência Vigente do Exame -->
-          <div id="badgeIgDestaque" class="calc-badge highlight" style="margin-top: 6px;">
+          <div id="badgeIgDestaque" class="calc-badge highlight" style="display: none; margin-top: 6px;">
             <span>Idade Gestacional de Referência:</span>
             <strong id="displayIgVigente">—</strong>
           </div>
@@ -272,16 +272,13 @@
             </div>
           </div>
 
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label" for="selCordao">Cordão Umbilical</label>
-              <select id="selCordao" class="form-select">
-                <option value="tres_vasos" selected>Constituído de 3 vasos, sem alterações</option>
-                <option value="arteria_unica">Artéria umbilical única (2 vasos)</option>
-                <option value="circular">Circular cervical de cordão umbilical</option>
-              </select>
-            </div>
-
+          <div class="form-group" style="margin-top: 14px; margin-bottom: 0;">
+            <label class="form-label" for="selCordao">Cordão Umbilical</label>
+            <select id="selCordao" class="form-select">
+              <option value="tres_vasos" selected>Constituído de 3 vasos, sem alterações</option>
+              <option value="arteria_unica">Artéria umbilical única (2 vasos)</option>
+              <option value="circular">Circular cervical de cordão umbilical</option>
+            </select>
           </div>
         </div>
       </section>
@@ -314,8 +311,8 @@
             </div>
           </div>
 
-          <!-- Mensagem informativa da Referência Automática do ILA -->
-          <div class="ila-reference-badge" id="ilaRefDisplay">
+          <!-- Mensagem informativa da Referência Automática do ILA (oculta até que a datação seja informada) -->
+          <div class="ila-reference-badge" id="ilaRefDisplay" style="display: none;">
             <strong>Referência do ILA:</strong> <span id="ilaRefTexto">Calculando...</span>
           </div>
 

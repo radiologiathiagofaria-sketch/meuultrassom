@@ -597,19 +597,13 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 3.1 FLUXO A2: Obstétrico Simples -> Vai direto ao módulo simples.
-    // A idade gestacional (e, a partir dela, a semana de referência e o ILA)
-    // é definida dentro do próprio módulo, na seção Cronologia Gestacional e Datação.
-    // Por isso NÃO há seleção prévia de semana e NENHUMA semana/IG é transmitida.
+    // 4. FLUXO B: Obstétrico Simples -> Navega diretamente para o laudo_simples.html (sem solicitar semana prévia)
     if (state.selectedExam === 'simples') {
       const payload = {
         tipoExame: 'simples',
         nomeExame: 'Obstétrico Simples',
-        semanaSelecionada: null,
         mascaraDestino: 'laudo_simples.html',
-        nomeMascara: 'Módulo Obstétrico Simples',
-        igCalculada: null,
-        metodoDatação: 'Definida no módulo (Cronologia Gestacional e Datação)',
+        nomeMascara: 'Módulo Obstétrico Simples (16 a 41 semanas)',
         timestamp: new Date().toISOString()
       };
 
@@ -623,9 +617,27 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 4. FLUXO C: Obstétrico com Doppler (inalterado)
-    // Abre a Janela de Seleção da Idade Gestacional (16 a 41 semanas)
-    openWeekModal();
+    // 5. FLUXO C: Obstétrico com Doppler -> Navega diretamente para o laudo_doppler.html (sem solicitar semana prévia)
+    if (state.selectedExam === 'doppler') {
+      const payload = {
+        tipoExame: 'doppler',
+        nomeExame: 'Obstétrico com Doppler',
+        mascaraDestino: 'laudo_doppler.html',
+        nomeMascara: 'Módulo Obstétrico com Doppler (16 a 41 semanas)',
+        igCalculada: state.igResult.valid ? { ...state.igResult } : null,
+        metodoDatação: state.igResult.valid ? state.igResult.metodo : null,
+        timestamp: new Date().toISOString()
+      };
+
+      state.navigationData = payload;
+      try {
+        sessionStorage.setItem('meuultrassom_nav_data', JSON.stringify(payload));
+      } catch (e) {}
+
+      // Navegar diretamente para o módulo Obstétrico com Doppler
+      window.location.href = 'laudo_doppler.html';
+      return;
+    }
   }
 
   /**
@@ -767,8 +779,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Mapeamento rigoroso do arquivo e da máscara
     const mascaraDestino = state.selectedExam === 'simples'
-      ? `laudo_simples_${week}.html`
-      : `laudo_doppler_${week}.html`;
+      ? 'laudo_simples.html'
+      : 'laudo_doppler.html';
 
     const nomeMascara = state.selectedExam === 'simples'
       ? `Máscara Obstétrica Simples — Semana ${week}`
@@ -799,19 +811,11 @@ document.addEventListener('DOMContentLoaded', () => {
       sessionStorage.setItem('meuultrassom_nav_data', JSON.stringify(payload));
     } catch (e) {}
 
-    // Fecha o modal de semanas
+    // Fecha o modal de semanas e navega diretamente para a máscara correspondente
     closeWeekModal();
 
-    // Abre o modal de confirmação de navegação
-    openNavigationModal({
-      type: 'success',
-      title: 'Máscara Obstétrica Selecionada',
-      examName: examTitle,
-      method: metodoTexto,
-      ig: igDisplay,
-      target: nomeMascara,
-      message: `Tudo pronto! Com a seleção de ${week} semanas para ${examTitle}, o sistema configurou a navegação para carregar a respectiva máscara estruturada na próxima etapa do desenvolvimento.`
-    });
+    // Navega diretamente para a máscara de destino (sem abrir navModal intermediário)
+    window.location.href = mascaraDestino;
   }
 
   // Ouvintes de eventos da grade de semanas
